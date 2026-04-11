@@ -12,46 +12,36 @@ import {
     Upload,
     Zap
 } from 'lucide-react';
-
-function SettingsPanel({ apiKey, provider, onUpdateSetting }) {
-    return (
-        <div className="max-w-5xl mx-auto mt-4 p-4 bg-black/20 rounded-xl backdrop-blur border border-white/10 animate-in slide-in-from-top-2">
-            <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <label className="text-xs text-indigo-200">API Key</label>
-                    <input
-                        type="password"
-                        value={apiKey}
-                        onChange={event => onUpdateSetting('apiKey', event.target.value)}
-                        className="w-full mt-1 p-2 rounded bg-black/30 border-white/20 text-white text-base"
-                    />
-                </div>
-                <div>
-                    <label className="text-xs text-indigo-200">Provider</label>
-                    <select
-                        value={provider}
-                        onChange={event => onUpdateSetting('provider', event.target.value)}
-                        className="w-full mt-1 p-2 rounded bg-black/30 text-white text-base"
-                    >
-                        <option value="deepseek">DeepSeek</option>
-                        <option value="gemini">Gemini</option>
-                    </select>
-                </div>
-            </div>
-        </div>
-    );
-}
+import SettingsPanel from './SettingsPanel.jsx';
 
 export default function AppHeader({
-    apiKey,
+    apiKeyDraft,
+    apiKeySaveMessage,
+    apiKeySaveStatus,
     currentUser,
     fileInputRef,
     handleBatchAnalyze,
     handleFileChange,
     handleImportClick,
     handleLogout,
+    inviteCodeDraft,
+    inviteCodeError,
+    inviteCodeMutatingId,
+    inviteCodes,
+    inviteCodesLoading,
+    isAdmin,
+    isCreatingInviteCode,
     isBatchAnalyzing,
+    isSavingApiKey,
+    adminStatusChecked,
+    onCreateInviteCode,
+    onDeleteInviteCode,
+    onRefreshInviteCodes,
+    onSaveApiKey,
     onSetView,
+    onToggleInviteCode,
+    onUpdateInviteCodeDraft,
+    onUpdateApiKeyDraft,
     provider,
     recordsCount,
     reviewQueueLength,
@@ -161,7 +151,29 @@ export default function AppHeader({
                 </div>
             </div>
             {showSettings && (
-                <SettingsPanel apiKey={apiKey} provider={provider} onUpdateSetting={onUpdateSetting} />
+                <SettingsPanel
+                    adminStatusChecked={adminStatusChecked}
+                    apiKeyDraft={apiKeyDraft}
+                    apiKeySaveMessage={apiKeySaveMessage}
+                    apiKeySaveStatus={apiKeySaveStatus}
+                    inviteCodeDraft={inviteCodeDraft}
+                    inviteCodeError={inviteCodeError}
+                    inviteCodeMutatingId={inviteCodeMutatingId}
+                    inviteCodes={inviteCodes}
+                    inviteCodesLoading={inviteCodesLoading}
+                    isAdmin={isAdmin}
+                    isCreatingInviteCode={isCreatingInviteCode}
+                    isSavingApiKey={isSavingApiKey}
+                    onCreateInviteCode={onCreateInviteCode}
+                    onDeleteInviteCode={onDeleteInviteCode}
+                    onRefreshInviteCodes={onRefreshInviteCodes}
+                    onSaveApiKey={onSaveApiKey}
+                    onToggleInviteCode={onToggleInviteCode}
+                    onUpdateInviteCodeDraft={onUpdateInviteCodeDraft}
+                    onUpdateApiKeyDraft={onUpdateApiKeyDraft}
+                    onUpdateSetting={onUpdateSetting}
+                    provider={provider}
+                />
             )}
         </header>
     );

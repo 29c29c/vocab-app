@@ -46,7 +46,7 @@ cp .env.example .env
 
 - `PORT`: 服务端端口，默认 `3001`
 - `JWT_SECRET`: JWT 密钥
-- `SYSTEM_INVITE_CODE`: 注册邀请码
+- `ADMIN_USERNAMES`: 管理员用户名，多个用逗号分隔
 - `CORS_ORIGIN`: 允许的前端来源
 - `DB_PATH`: SQLite 数据库文件路径
 - `SERVE_STATIC`: 是否托管前端静态文件
@@ -97,6 +97,13 @@ npm run start
 - 本地构建产物 `dist/`
 
 仓库里的 `.gitignore` 已经默认忽略了这些文件，但如果你手动 `git add -f`，仍然可能把敏感内容提交上去。
+
+### 邀请码与管理员
+
+- 注册依赖服务端邀请码表，不再使用单个环境变量邀请码
+- 管理员账号通过 `ADMIN_USERNAMES` 指定
+- 管理员可在设置页内管理邀请码
+- 系统冷启动且还没有任何邀请码时，命中管理员用户名的账号可免邀请码完成首次注册
 
 ## 项目结构
 

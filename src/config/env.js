@@ -9,7 +9,6 @@ const projectRoot = path.resolve(__dirname, '..', '..');
 const DEFAULT_PORT = 3001;
 const DEFAULT_DB_NAME = 'database.sqlite';
 const DEFAULT_DEV_JWT_SECRET = 'dev-insecure-jwt-secret-change-me';
-const DEFAULT_DEV_INVITE_CODE = 'tes369';
 
 function parsePort(value) {
     if (!value) return DEFAULT_PORT;
@@ -36,6 +35,14 @@ function parseCorsOrigins(value) {
         .filter(Boolean);
 }
 
+function parseAdminUsernames(value) {
+    if (!value) return [];
+    return value
+        .split(',')
+        .map(item => item.trim())
+        .filter(Boolean);
+}
+
 const isProduction = process.env.NODE_ENV === 'production';
 const distDir = path.join(projectRoot, 'dist');
 const distExists = fs.existsSync(distDir);
@@ -45,7 +52,7 @@ const config = {
     isProduction,
     port: parsePort(process.env.PORT),
     jwtSecret: process.env.JWT_SECRET || DEFAULT_DEV_JWT_SECRET,
-    systemInviteCode: process.env.SYSTEM_INVITE_CODE || DEFAULT_DEV_INVITE_CODE,
+    adminUsernames: parseAdminUsernames(process.env.ADMIN_USERNAMES),
     corsOrigins: parseCorsOrigins(process.env.CORS_ORIGIN),
     dbPath: process.env.DB_PATH || path.join(projectRoot, DEFAULT_DB_NAME),
     serveStatic: parseBoolean(process.env.SERVE_STATIC, distExists),
@@ -67,12 +74,12 @@ if (!process.env.JWT_SECRET) {
     console.warn(`${message} 当前仅使用开发默认值，请勿直接对公网部署。`);
 }
 
-if (!process.env.SYSTEM_INVITE_CODE) {
-    const message = '未配置 SYSTEM_INVITE_CODE。';
+if (config.adminUsernames.length === 0) {
+    const message = '未配置 ADMIN_USERNAMES。';
     if (isProduction) {
-        throw new Error(`${message} 生产环境禁止使用默认邀请码。`);
+        throw new Error(`${message} 生产环境必须指定管理员账号。`);
     }
-    console.warn(`${message} 当前仅使用开发默认值，请勿直接对公网部署。`);
+    console.warn(`${message} 当前将无法使用管理员邀请码管理功能。`);
 }
 
 if (config.allowAllCors) {

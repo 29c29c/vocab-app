@@ -6,7 +6,9 @@ import { createCorsMiddleware } from './middleware/cors.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { createJsonParsers } from './middleware/jsonParsers.js';
 import { createRateLimiter } from './middleware/rateLimit.js';
+import { createRequireAdmin } from './middleware/requireAdmin.js';
 import { securityHeaders } from './middleware/securityHeaders.js';
+import { createAdminInviteCodeRouter } from './routes/adminInviteCodeRoutes.js';
 import { createAuthRouter } from './routes/authRoutes.js';
 import { createAiRouter } from './routes/aiRoutes.js';
 import { createDataRouter } from './routes/dataRoutes.js';
@@ -16,6 +18,7 @@ import { createSettingsRouter } from './routes/settingsRoutes.js';
 export function createApp({ config }) {
     const app = express();
     const authenticateToken = createAuthenticateToken(config);
+    const requireAdmin = createRequireAdmin(config);
     const jsonParsers = createJsonParsers(config);
 
     app.disable('x-powered-by');
@@ -44,6 +47,7 @@ export function createApp({ config }) {
     }));
     app.use('/api', createSettingsRouter({ authenticateToken, jsonParsers }));
     app.use('/api', createAiRouter({ authenticateToken, jsonParsers }));
+    app.use('/api', createAdminInviteCodeRouter({ authenticateToken, jsonParsers, requireAdmin }));
     app.use('/api', createDataRouter({ authenticateToken, jsonParsers }));
     app.use('/api', createRecordRouter({ authenticateToken, jsonParsers }));
 

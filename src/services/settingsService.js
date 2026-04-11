@@ -1,6 +1,7 @@
 import * as userRepository from '../repositories/userRepository.js';
+import { normalizeAppSettings } from '../client/defaultSettings.js';
 
-export async function getSettings(userId) {
+async function readSettings(userId) {
     const user = await userRepository.findUserSettingsById(userId);
     if (!user || !user.settings) {
         return {};
@@ -14,7 +15,28 @@ export async function getSettings(userId) {
     }
 }
 
-export async function saveSettings(userId, settings) {
-    await userRepository.updateUserSettings(userId, JSON.stringify(settings));
+export async function getSettings(userId) {
+    return normalizeAppSettings(await readSettings(userId));
+}
+
+export async function saveSettings(userId, partialSettings) {
+    const currentSettings = normalizeAppSettings(await readSettings(userId));
+    const nextSettings = normalizeAppSettings({
+        ...currentSettings,
+        ...Object.fromEntries(Object.entries(partialSettings).filter(([, value]) => value !== undefined))
+    });
+
+    await userRepository.updateUserSettings(userId, JSON.stringify(nextSettings));
+    return { success: true, settings: nextSettings };
+}
+
+export async function saveApiKey(userId, apiKey) {
+    const currentSettings = normalizeAppSettings(await readSettings(userId));
+    const nextSettings = normalizeAppSettings({
+        ...currentSettings,
+        apiKey
+    });
+
+    await userRepository.updateUserSettings(userId, JSON.stringify(nextSettings));
     return { success: true };
 }

@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { createApp } from './src/app.js';
 import { config } from './src/config/env.js';
 import { databaseReady } from './src/db/index.js';

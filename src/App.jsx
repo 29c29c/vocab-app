@@ -8,6 +8,7 @@ import { requestAiCompletion } from './client/aiApi.js';
 import { DEFAULT_APP_SETTINGS, hasAiConfig, normalizeAppSettings } from './client/defaultSettings.js';
 import { readSettingsCache, writeSettingsCache } from './client/settingsCache.js';
 import { loadXlsxLibrary } from './client/xlsxLoader.js';
+import { getAiProviderPreset } from './shared/aiProviders.js';
 import AppHeader from './components/AppHeader.jsx';
 import ArticleAnalyzer from './components/ArticleAnalyzer.jsx';
 import AuthScreen from './components/AuthScreen.jsx';
@@ -71,7 +72,24 @@ export default function SmartVocabularyApp() {
     const [settingsLoaded, setSettingsLoaded] = useState(false);
     const fileInputRef = useRef(null);
     const [settings, setSettings] = useState(() => readSettingsCache());
-    const { apiKey, provider } = settings;
+    const [apiKeyDraft, setApiKeyDraft] = useState('');
+    const [apiKeySaveStatus, setApiKeySaveStatus] = useState('idle');
+    const [apiKeySaveMessage, setApiKeySaveMessage] = useState('');
+    const [isSavingApiKey, setIsSavingApiKey] = useState(false);
+    const [isAdmin, setIsAdmin] = useState(false);
+    const [adminStatusChecked, setAdminStatusChecked] = useState(false);
+    const [inviteCodes, setInviteCodes] = useState([]);
+    const [inviteCodesLoading, setInviteCodesLoading] = useState(false);
+    const [inviteCodeError, setInviteCodeError] = useState('');
+    const [inviteCodeDraft, setInviteCodeDraft] = useState({ code: '', maxUses: '1' });
+    const [inviteCodeMutatingId, setInviteCodeMutatingId] = useState(null);
+    const [isCreatingInviteCode, setIsCreatingInviteCode] = useState(false);
+    const { provider } = settings;
+    const publicSettings = useMemo(() => ({
+        provider: settings.provider,
+        dsBaseUrl: settings.dsBaseUrl,
+        dsModel: settings.dsModel
+    }), [settings.dsBaseUrl, settings.dsModel, settings.provider]);
 
     // --- Auth Handlers ---
     const handleLogin = useCallback((newToken, username) => {
@@ -89,13 +107,25 @@ export default function SmartVocabularyApp() {
         setRecords([]);
         setIsDataLoaded(false);
         setSettings({ ...DEFAULT_APP_SETTINGS });
+        setApiKeyDraft('');
+        setApiKeySaveStatus('idle');
+        setApiKeySaveMessage('');
+        setIsSavingApiKey(false);
         setSettingsLoaded(false);
+        setIsAdmin(false);
+        setAdminStatusChecked(false);
+        setInviteCodes([]);
+        setInviteCodesLoading(false);
+        setInviteCodeError('');
+        setInviteCodeDraft({ code: '', maxUses: '1' });
+        setInviteCodeMutatingId(null);
+        setIsCreatingInviteCode(false);
     }, []);
 
     const fetchWithAuth = useCallback(async (url, options = {}) => {
         const headers = { ...options.headers, 'Authorization': `Bearer ${token}` };
         const res = await fetch(url, { ...options, headers });
-        if (res.status === 401 || res.status === 403) {
+        if (res.status === 401) {
             handleLogout();
             throw new Error("登录已过期，请重新登录");
         }
@@ -137,27 +167,28 @@ export default function SmartVocabularyApp() {
 
                 const serverSettings = normalizeAppSettings(await settingsRes.json());
                 const cachedSettings = readSettingsCache();
-                const effectiveSettings = hasAiConfig(serverSettings) ? serverSettings : cachedSettings;
+                const effectiveSettings = normalizeAppSettings({
+                    ...cachedSettings,
+                    ...serverSettings
+                });
 
                 if (cancelled) return;
 
                 setRecords(migratedData);
                 setIsDataLoaded(true);
                 setSettings(effectiveSettings);
+                setApiKeyDraft(serverSettings.apiKey || '');
+                setApiKeySaveStatus(serverSettings.apiKey ? 'saved' : 'idle');
+                setApiKeySaveMessage(serverSettings.apiKey ? '当前 API Key 已从服务端加载。' : '');
                 setSettingsLoaded(true);
                 writeSettingsCache(effectiveSettings);
-
-                if (!hasAiConfig(serverSettings) && hasAiConfig(cachedSettings)) {
-                    await fetchWithAuth(`${API_BASE}/settings`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(cachedSettings)
-                    });
-                }
             } catch (error) {
                 console.error(error);
                 if (!cancelled) {
                     setSettings(readSettingsCache());
+                    setApiKeyDraft('');
+                    setApiKeySaveStatus('idle');
+                    setApiKeySaveMessage('');
                     setSettingsLoaded(true);
                 }
             }
@@ -176,9 +207,9 @@ export default function SmartVocabularyApp() {
                 await fetchWithAuth(`${API_BASE}/settings`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(settings)
+                    body: JSON.stringify(publicSettings)
                 });
-                writeSettingsCache(settings);
+                writeSettingsCache(publicSettings);
             } catch (error) {
                 console.error('保存设置失败', error);
             }
@@ -187,9 +218,191 @@ export default function SmartVocabularyApp() {
         return () => {
             window.clearTimeout(timeoutId);
         };
-    }, [fetchWithAuth, settings, settingsLoaded, token]);
+    }, [fetchWithAuth, publicSettings, settingsLoaded, token]);
 
-    const updateSetting = (key, val) => setSettings(p => ({ ...p, [key]: val }));
+    const updateSetting = (key, val) => {
+        setSettings(previous => {
+            if (key === 'provider') {
+                const preset = getAiProviderPreset(val);
+                return {
+                    ...previous,
+                    provider: val,
+                    dsBaseUrl: preset.baseUrl || '',
+                    dsModel: preset.model || previous.dsModel
+                };
+            }
+
+            return { ...previous, [key]: val };
+        });
+    };
+    const updateInviteCodeDraft = (key, value) => setInviteCodeDraft(previous => ({ ...previous, [key]: value }));
+    const updateApiKeyDraft = value => {
+        setApiKeyDraft(value);
+        setApiKeySaveStatus('idle');
+        setApiKeySaveMessage('');
+    };
+
+    const handleSaveApiKey = useCallback(async () => {
+        const trimmedApiKey = apiKeyDraft.trim();
+
+        setIsSavingApiKey(true);
+        setApiKeySaveStatus('idle');
+        setApiKeySaveMessage('');
+
+        try {
+            const response = await fetchWithAuth(`${API_BASE}/settings/api-key`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ apiKey: trimmedApiKey })
+            });
+
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.error || '保存 API Key 失败');
+            }
+
+            setSettings(previous => ({ ...previous, apiKey: trimmedApiKey }));
+            setApiKeyDraft(trimmedApiKey);
+            setApiKeySaveStatus('saved');
+            setApiKeySaveMessage(trimmedApiKey ? 'API Key 已保存到服务端。' : '服务端 API Key 已清空。');
+        } catch (error) {
+            console.error('保存 API Key 失败', error);
+            setApiKeySaveStatus('error');
+            setApiKeySaveMessage(error.message || '保存 API Key 失败');
+        } finally {
+            setIsSavingApiKey(false);
+        }
+    }, [apiKeyDraft, fetchWithAuth]);
+
+    const loadInviteCodes = useCallback(async () => {
+        if (!token) return;
+
+        setInviteCodesLoading(true);
+        setInviteCodeError('');
+
+        try {
+            const response = await fetchWithAuth(`${API_BASE}/admin/invite-codes`);
+
+            if (response.status === 403) {
+                setIsAdmin(false);
+                setAdminStatusChecked(true);
+                setInviteCodes([]);
+                return;
+            }
+
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.error || '获取邀请码失败');
+            }
+
+            const data = await response.json();
+            setIsAdmin(true);
+            setAdminStatusChecked(true);
+            setInviteCodes(Array.isArray(data) ? data : []);
+        } catch (error) {
+            console.error('获取邀请码失败', error);
+            if (error.message !== '登录已过期，请重新登录') {
+                setInviteCodeError(error.message || '获取邀请码失败');
+                setAdminStatusChecked(true);
+            }
+        } finally {
+            setInviteCodesLoading(false);
+        }
+    }, [fetchWithAuth, token]);
+
+    useEffect(() => {
+        if (!token || !showSettings) return;
+        loadInviteCodes();
+    }, [loadInviteCodes, showSettings, token]);
+
+    const handleCreateInviteCode = async () => {
+        const normalizedCode = inviteCodeDraft.code.trim();
+        const maxUses = Number.parseInt(inviteCodeDraft.maxUses, 10);
+
+        if (!normalizedCode) {
+            alert('请输入邀请码');
+            return;
+        }
+
+        if (!Number.isInteger(maxUses) || maxUses <= 0) {
+            alert('请输入有效的可用次数');
+            return;
+        }
+
+        setIsCreatingInviteCode(true);
+        setInviteCodeError('');
+
+        try {
+            const response = await fetchWithAuth(`${API_BASE}/admin/invite-codes`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: normalizedCode, maxUses })
+            });
+
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.error || '创建邀请码失败');
+            }
+
+            setInviteCodeDraft({ code: '', maxUses: '1' });
+            await loadInviteCodes();
+        } catch (error) {
+            console.error('创建邀请码失败', error);
+            setInviteCodeError(error.message || '创建邀请码失败');
+        } finally {
+            setIsCreatingInviteCode(false);
+        }
+    };
+
+    const handleToggleInviteCode = async inviteCode => {
+        setInviteCodeMutatingId(inviteCode.id);
+        setInviteCodeError('');
+
+        try {
+            const response = await fetchWithAuth(`${API_BASE}/admin/invite-codes/${inviteCode.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ isActive: !inviteCode.isActive })
+            });
+
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.error || '更新邀请码失败');
+            }
+
+            await loadInviteCodes();
+        } catch (error) {
+            console.error('更新邀请码失败', error);
+            setInviteCodeError(error.message || '更新邀请码失败');
+        } finally {
+            setInviteCodeMutatingId(null);
+        }
+    };
+
+    const handleDeleteInviteCode = async inviteCodeId => {
+        if (!confirm('确定删除这个邀请码吗？')) return;
+
+        setInviteCodeMutatingId(inviteCodeId);
+        setInviteCodeError('');
+
+        try {
+            const response = await fetchWithAuth(`${API_BASE}/admin/invite-codes/${inviteCodeId}`, {
+                method: 'DELETE'
+            });
+
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.error || '删除邀请码失败');
+            }
+
+            await loadInviteCodes();
+        } catch (error) {
+            console.error('删除邀请码失败', error);
+            setInviteCodeError(error.message || '删除邀请码失败');
+        } finally {
+            setInviteCodeMutatingId(null);
+        }
+    };
 
     // --- CRUD Handlers (实时保存核心) ---
 
@@ -652,16 +865,34 @@ export default function SmartVocabularyApp() {
     return (
         <div className="min-h-screen bg-slate-50 text-slate-800 font-sans pb-[env(safe-area-inset-bottom)]">
             <AppHeader
-                apiKey={apiKey}
+                adminStatusChecked={adminStatusChecked}
+                apiKeyDraft={apiKeyDraft}
+                apiKeySaveMessage={apiKeySaveMessage}
+                apiKeySaveStatus={apiKeySaveStatus}
                 currentUser={currentUser}
                 fileInputRef={fileInputRef}
                 handleBatchAnalyze={handleBatchAnalyze}
                 handleFileChange={handleFileChange}
                 handleImportClick={handleImportClick}
                 handleLogout={handleLogout}
+                inviteCodeDraft={inviteCodeDraft}
+                inviteCodeError={inviteCodeError}
+                inviteCodeMutatingId={inviteCodeMutatingId}
+                inviteCodes={inviteCodes}
+                inviteCodesLoading={inviteCodesLoading}
+                isAdmin={isAdmin}
+                isCreatingInviteCode={isCreatingInviteCode}
                 isBatchAnalyzing={isBatchAnalyzing}
+                isSavingApiKey={isSavingApiKey}
+                onCreateInviteCode={handleCreateInviteCode}
+                onDeleteInviteCode={handleDeleteInviteCode}
+                onRefreshInviteCodes={loadInviteCodes}
+                onSaveApiKey={handleSaveApiKey}
                 onSetView={setView}
+                onToggleInviteCode={handleToggleInviteCode}
                 onToggleSettings={() => setShowSettings(previous => !previous)}
+                onUpdateApiKeyDraft={updateApiKeyDraft}
+                onUpdateInviteCodeDraft={updateInviteCodeDraft}
                 onUpdateSetting={updateSetting}
                 provider={provider}
                 recordsCount={records.length}

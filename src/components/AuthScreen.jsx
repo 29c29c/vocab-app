@@ -100,11 +100,10 @@ export default function AuthScreen({ onLogin }) {
                                     <Check className="w-5 h-5 text-slate-400 absolute left-3 top-3" />
                                     <input
                                         type="text"
-                                        required
                                         value={inviteCode}
                                         onChange={event => setInviteCode(event.target.value)}
                                         className="w-full pl-10 p-3 bg-slate-50 border border-indigo-100 rounded-xl focus:ring-2 ring-indigo-500 outline-none"
-                                        placeholder="请输入邀请码"
+                                        placeholder="请输入邀请码（管理员首次初始化可留空）"
                                     />
                                 </div>
                             </div>

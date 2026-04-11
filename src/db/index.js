@@ -107,10 +107,24 @@ async function initializeDatabase() {
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users (id)
         );
+
+        CREATE TABLE IF NOT EXISTS invite_codes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT UNIQUE NOT NULL,
+            max_uses INTEGER NOT NULL,
+            used_count INTEGER DEFAULT 0,
+            is_active INTEGER DEFAULT 1,
+            created_by_user_id INTEGER,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (created_by_user_id) REFERENCES users (id)
+        );
     `);
 
     await ensureColumn('users', 'settings', 'TEXT');
     await ensureColumn('records', 'custom_meaning', 'TEXT');
+    await ensureColumn('invite_codes', 'used_count', 'INTEGER DEFAULT 0');
+    await ensureColumn('invite_codes', 'is_active', 'INTEGER DEFAULT 1');
+    await ensureColumn('invite_codes', 'created_by_user_id', 'INTEGER');
 
     await rawExec(`
         CREATE INDEX IF NOT EXISTS idx_records_user_id
@@ -118,6 +132,9 @@ async function initializeDatabase() {
 
         CREATE INDEX IF NOT EXISTS idx_records_user_next_review_date
         ON records(user_id, next_review_date);
+
+        CREATE INDEX IF NOT EXISTS idx_invite_codes_code
+        ON invite_codes(code);
     `);
 
     console.log('✅ 数据库表结构与索引已就绪');

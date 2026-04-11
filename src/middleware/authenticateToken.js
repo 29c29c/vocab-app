@@ -15,7 +15,7 @@ export function createAuthenticateToken(config) {
             req.user = user;
             next();
         } catch {
-            res.status(403).json({ error: 'Token 无效' });
+            res.status(401).json({ error: 'Token 无效' });
         }
     };
 }

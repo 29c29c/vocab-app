@@ -1,9 +1,8 @@
 import * as userRepository from '../../src/repositories/userRepository.js';
+import { normalizeAppSettings } from '../../src/client/defaultSettings.js';
+import { getAiProviderPreset } from '../../src/shared/aiProviders.js';
 import { AppError } from '../../src/utils/http.js';
 
-const DEFAULT_PROVIDER = 'deepseek';
-const DEFAULT_DEEPSEEK_BASE_URL = 'https://api.deepseek.com';
-const DEFAULT_DEEPSEEK_MODEL = 'deepseek-chat';
 const DEFAULT_AI_TIMEOUT_MS = 30000;
 
 function parseSettings(settingsText) {
@@ -36,20 +35,7 @@ function isPrivateHostname(hostname) {
     return false;
 }
 
-function normalizeAiSettings(rawSettings) {
-    const provider = rawSettings.provider === 'gemini' ? 'gemini' : DEFAULT_PROVIDER;
-    const apiKey = typeof rawSettings.apiKey === 'string' ? rawSettings.apiKey.trim() : '';
-    const dsBaseUrl = typeof rawSettings.dsBaseUrl === 'string' && rawSettings.dsBaseUrl.trim()
-        ? rawSettings.dsBaseUrl.trim()
-        : DEFAULT_DEEPSEEK_BASE_URL;
-    const dsModel = typeof rawSettings.dsModel === 'string' && rawSettings.dsModel.trim()
-        ? rawSettings.dsModel.trim()
-        : DEFAULT_DEEPSEEK_MODEL;
-
-    return { apiKey, dsBaseUrl, dsModel, provider };
-}
-
-function validateDeepSeekBaseUrl(urlValue) {
+function normalizeBaseUrl(urlValue) {
     let parsedUrl;
 
     try {
@@ -66,36 +52,35 @@ function validateDeepSeekBaseUrl(urlValue) {
         throw new AppError(400, 'AI 服务地址不允许使用内网地址');
     }
 
-    return parsedUrl.origin;
+    parsedUrl.search = '';
+    parsedUrl.hash = '';
+
+    return `${parsedUrl.origin}${parsedUrl.pathname}`.replace(/\/$/, '');
 }
 
-async function requestGemini(prompt, apiKey) {
-    const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${encodeURIComponent(apiKey)}`,
-        {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-            signal: AbortSignal.timeout(DEFAULT_AI_TIMEOUT_MS)
-        }
-    );
+async function readJsonResponse(response) {
+    const rawText = await response.text();
 
-    const data = await response.json();
-    if (!response.ok) {
-        throw new AppError(502, data?.error?.message || 'Gemini 请求失败');
+    if (!rawText) {
+        return {};
     }
 
-    return data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    try {
+        return JSON.parse(rawText);
+    } catch {
+        return { rawText };
+    }
 }
 
-async function requestDeepSeek(prompt, settings, responseFormat) {
-    const baseUrl = validateDeepSeekBaseUrl(settings.dsBaseUrl);
+async function requestOpenAiCompatible(prompt, settings, responseFormat) {
+    const preset = getAiProviderPreset(settings.provider);
+    const baseUrl = normalizeBaseUrl(settings.dsBaseUrl || preset.baseUrl);
     const payload = {
-        model: settings.dsModel,
+        model: settings.dsModel || preset.model,
         messages: [{ role: 'user', content: prompt }]
     };
 
-    if (responseFormat === 'json_object') {
+    if (responseFormat === 'json_object' && preset.supportsJsonMode) {
         payload.response_format = { type: 'json_object' };
     }
 
@@ -109,25 +94,55 @@ async function requestDeepSeek(prompt, settings, responseFormat) {
         signal: AbortSignal.timeout(DEFAULT_AI_TIMEOUT_MS)
     });
 
-    const data = await response.json();
+    const data = await readJsonResponse(response);
     if (!response.ok) {
-        throw new AppError(502, data?.error?.message || 'DeepSeek 请求失败');
+        throw new AppError(502, data?.error?.message || data?.message || `${preset.label} 请求失败`);
     }
 
-    return data?.choices?.[0]?.message?.content || '';
+    return data?.choices?.[0]?.message?.content || data?.rawText || '';
+}
+
+async function requestGemini(prompt, settings, responseFormat) {
+    const preset = getAiProviderPreset(settings.provider);
+    const model = settings.dsModel || preset.model;
+    const payload = {
+        contents: [{ parts: [{ text: prompt }] }]
+    };
+
+    if (responseFormat === 'json_object') {
+        payload.generationConfig = { responseMimeType: 'application/json' };
+    }
+
+    const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(settings.apiKey)}`,
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: AbortSignal.timeout(DEFAULT_AI_TIMEOUT_MS)
+        }
+    );
+
+    const data = await readJsonResponse(response);
+    if (!response.ok) {
+        throw new AppError(502, data?.error?.message || `${preset.label} 请求失败`);
+    }
+
+    return data?.candidates?.[0]?.content?.parts?.[0]?.text || data?.rawText || '';
 }
 
 export async function generateAiContent(userId, { prompt, responseFormat }) {
     const user = await userRepository.findUserSettingsById(userId);
-    const settings = normalizeAiSettings(parseSettings(user?.settings));
+    const settings = normalizeAppSettings(parseSettings(user?.settings));
+    const preset = getAiProviderPreset(settings.provider);
 
     if (!settings.apiKey) {
         throw new AppError(400, '请先在设置中配置 API Key');
     }
 
-    if (settings.provider === 'gemini') {
-        return { content: await requestGemini(prompt, settings.apiKey) };
+    if (preset.protocol === 'gemini') {
+        return { content: await requestGemini(prompt, settings, responseFormat) };
     }
 
-    return { content: await requestDeepSeek(prompt, settings, responseFormat) };
+    return { content: await requestOpenAiCompatible(prompt, settings, responseFormat) };
 }
