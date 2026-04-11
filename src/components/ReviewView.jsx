@@ -85,9 +85,16 @@ export default function ReviewView({
                         <div className="perspective-1000">
                             <div className="flex items-center justify-between text-xs text-slate-400 mb-2 px-2">
                                 <span>Queue: {reviewQueue.length} left</span>
-                                <span>
-                                    Stage: {currentReviewItem.reviewStage} {currentReviewItem.needsReadingPractice ? '(强化)' : ''}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                    {currentReviewItem.sameDayReviewTarget > 0 && currentReviewItem.sameDayReviewDate && (
+                                        <span className="px-2 py-1 rounded-full bg-amber-100 text-amber-700 font-semibold">
+                                            今日巩固 {currentReviewItem.sameDayReviewDone}/{currentReviewItem.sameDayReviewTarget}
+                                        </span>
+                                    )}
+                                    <span>
+                                        Stage: {currentReviewItem.reviewStage} {currentReviewItem.needsReadingPractice ? '(强化)' : ''}
+                                    </span>
+                                </div>
                             </div>
                             <div
                                 onClick={() => setIsFlipped(!isFlipped)}

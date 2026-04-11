@@ -37,7 +37,10 @@ export function validateUpdateRecordPayload(body) {
         'needsReadingPractice',
         'nextReviewDate',
         'reading',
-        'reviewStage'
+        'reviewStage',
+        'sameDayReviewDate',
+        'sameDayReviewDone',
+        'sameDayReviewTarget'
     ]);
 
     return {
@@ -48,7 +51,10 @@ export function validateUpdateRecordPayload(body) {
         needsReadingPractice: readBooleanLike(input.needsReadingPractice, '朗读练习标记'),
         nextReviewDate: readRequiredString(input.nextReviewDate, '下次复习日期', { maxLength: 64 }),
         reading: readOptionalString(input.reading, '音标'),
-        reviewStage: readInteger(input.reviewStage, '复习阶段', { max: 100000, min: 0 })
+        reviewStage: readInteger(input.reviewStage, '复习阶段', { max: 100000, min: 0 }),
+        sameDayReviewDate: readNullableString(input.sameDayReviewDate, '当天巩固日期', { maxLength: 64 }),
+        sameDayReviewDone: readInteger(input.sameDayReviewDone, '当天巩固已完成次数', { max: 100000, min: 0 }),
+        sameDayReviewTarget: readInteger(input.sameDayReviewTarget, '当天巩固目标次数', { max: 100000, min: 0 })
     };
 }
 

@@ -11,6 +11,9 @@ export function mapRecordRowToApiRecord(row) {
         nextReviewDate: row.next_review_date,
         reading: row.reading,
         reviewStage: row.review_stage,
+        sameDayReviewDate: row.same_day_review_date,
+        sameDayReviewDone: row.same_day_review_done,
+        sameDayReviewTarget: row.same_day_review_target,
         sentence: row.sentence,
         word: row.word
     };
@@ -28,6 +31,9 @@ export function mapCreatePayloadToDbRecord(userId, payload) {
         nextReviewDate: payload.date,
         reading: payload.reading || '',
         reviewStage: 0,
+        sameDayReviewDate: null,
+        sameDayReviewDone: 0,
+        sameDayReviewTarget: 0,
         sentence: payload.sentence || '',
         userId,
         word: payload.word
@@ -45,6 +51,9 @@ export function mapInsertedRecordToApiRecord(id, dbRecord) {
         nextReviewDate: dbRecord.nextReviewDate,
         reading: dbRecord.reading,
         reviewStage: dbRecord.reviewStage,
+        sameDayReviewDate: dbRecord.sameDayReviewDate,
+        sameDayReviewDone: dbRecord.sameDayReviewDone,
+        sameDayReviewTarget: dbRecord.sameDayReviewTarget,
         sentence: dbRecord.sentence,
         word: dbRecord.word
     };
@@ -59,7 +68,10 @@ export function mapUpdatePayloadToDbRecord(payload) {
         needsReadingPractice: payload.needsReadingPractice ? 1 : 0,
         nextReviewDate: payload.nextReviewDate,
         reading: payload.reading || '',
-        reviewStage: payload.reviewStage
+        reviewStage: payload.reviewStage,
+        sameDayReviewDate: payload.sameDayReviewDate ?? null,
+        sameDayReviewDone: payload.sameDayReviewDone ?? 0,
+        sameDayReviewTarget: payload.sameDayReviewTarget ?? 0
     };
 }
 
@@ -75,6 +87,9 @@ export function mapLegacyPayloadToDbRecord(userId, payload) {
         nextReviewDate: payload.nextReviewDate ?? payload.date ?? null,
         reading: payload.reading || '',
         reviewStage: Number.isInteger(payload.reviewStage) ? payload.reviewStage : 0,
+        sameDayReviewDate: payload.sameDayReviewDate ?? null,
+        sameDayReviewDone: Number.isInteger(payload.sameDayReviewDone) ? payload.sameDayReviewDone : 0,
+        sameDayReviewTarget: Number.isInteger(payload.sameDayReviewTarget) ? payload.sameDayReviewTarget : 0,
         sentence: payload.sentence || '',
         userId,
         word: payload.word ?? null

@@ -6,6 +6,15 @@ import {
 } from 'lucide-react';
 import { requestAiCompletion } from './client/aiApi.js';
 import { DEFAULT_APP_SETTINGS, hasAiConfig, normalizeAppSettings } from './client/defaultSettings.js';
+import {
+    clearSameDayReviewFields,
+    getTodayDateString,
+    isSameDayReviewActive,
+    normalizeReviewRecord,
+    progressSameDayReview,
+    reinsertReviewItem,
+    startSameDayReview
+} from './client/reviewScheduler.js';
 import { readSettingsCache, writeSettingsCache } from './client/settingsCache.js';
 import { loadXlsxLibrary } from './client/xlsxLoader.js';
 import { getAiProviderPreset } from './shared/aiProviders.js';
@@ -53,11 +62,11 @@ export default function SmartVocabularyApp() {
 
     // 模态框
     const [showDictationModal, setShowDictationModal] = useState(false);
-    const [dictationDate, setDictationDate] = useState(() => new Date().toISOString().split('T')[0]);
+    const [dictationDate, setDictationDate] = useState(() => getTodayDateString());
     const [modalRecord, setModalRecord] = useState(null);
 
     // 输入框
-    const [inputDate, setInputDate] = useState(() => new Date().toISOString().split('T')[0]);
+    const [inputDate, setInputDate] = useState(() => getTodayDateString());
     const [inputWord, setInputWord] = useState('');
     const [inputSentence, setInputSentence] = useState('');
     const [inputMeaning, setInputMeaning] = useState('');
@@ -154,16 +163,11 @@ export default function SmartVocabularyApp() {
                 if (!settingsRes.ok) throw new Error("获取设置失败");
 
                 const data = await dataRes.json();
-                const migratedData = (Array.isArray(data) ? data : []).map(r => ({
-                    ...r,
-                    customMeaning: r.customMeaning || '',
-                    reviewStage: r.reviewStage ?? 0,
-                    nextReviewDate: r.nextReviewDate || new Date().toISOString().split('T')[0],
-                    mastered: r.mastered ?? false,
-                    masteredDate: r.masteredDate || null,
-                    reading: r.reading || '',
-                    needsReadingPractice: r.needsReadingPractice ?? false
-                }));
+                const today = getTodayDateString();
+                const migratedData = (Array.isArray(data) ? data : []).map(record => normalizeReviewRecord(record, today));
+                const staleSameDayRecords = (Array.isArray(data) ? data : [])
+                    .filter(record => (record?.sameDayReviewTarget ?? 0) > 0 && record?.sameDayReviewDate !== today)
+                    .map(record => normalizeReviewRecord(record, today));
 
                 const serverSettings = normalizeAppSettings(await settingsRes.json());
                 const cachedSettings = readSettingsCache();
@@ -182,6 +186,18 @@ export default function SmartVocabularyApp() {
                 setApiKeySaveMessage(serverSettings.apiKey ? '当前 API Key 已从服务端加载。' : '');
                 setSettingsLoaded(true);
                 writeSettingsCache(effectiveSettings);
+
+                if (staleSameDayRecords.length > 0) {
+                    Promise.all(staleSameDayRecords.map(record =>
+                        fetchWithAuth(`${API_BASE}/records/${record.id}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(record)
+                        })
+                    )).catch(error => {
+                        console.error('清理过期当天巩固状态失败', error);
+                    });
+                }
             } catch (error) {
                 console.error(error);
                 if (!cancelled) {
@@ -486,7 +502,7 @@ export default function SmartVocabularyApp() {
     // 4. 批量添加 (Batch Add)
     const handleBatchAddRecords = async (newItems) => {
         setSaveStatus('saving');
-        const today = new Date().toISOString().split('T')[0];
+        const today = getTodayDateString();
         
         // 并发发送请求
         const promises = newItems.map(item => {
@@ -545,7 +561,7 @@ export default function SmartVocabularyApp() {
     // --- Review Handlers ---
     useEffect(() => {
         if (!isDataLoaded) return;
-        const today = new Date().toISOString().split('T')[0];
+        const today = getTodayDateString();
         setReviewQueue(prev => {
             if (prev.length > 0) return prev;
             const pending = records.filter(r => !r.mastered && r.nextReviewDate <= today);
@@ -560,70 +576,95 @@ export default function SmartVocabularyApp() {
         if (!currentReviewItem) return;
         const record = currentReviewItem;
         const isReinforce = record.needsReadingPractice;
+        const today = getTodayDateString();
 
-        setReviewHistory(prev => [...prev, JSON.parse(JSON.stringify(record))]);
-
-        if (quality === 'easy') {
-            const interval = getNextReviewInterval(record.reviewStage, isReinforce);
-            if (interval === null) {
-                handleMaster(record.id);
-                return;
+        setReviewHistory(prev => [
+            ...prev,
+            {
+                queue: reviewQueue.map(item => JSON.parse(JSON.stringify(item))),
+                record: JSON.parse(JSON.stringify(record))
             }
-            const newStage = record.reviewStage + 1;
-            const today = new Date();
-            const nextDate = new Date(today);
-            nextDate.setDate(today.getDate() + interval);
-            const nextDateStr = nextDate.toISOString().split('T')[0];
+        ]);
 
-            updateRecord({ ...record, reviewStage: newStage, nextReviewDate: nextDateStr });
-            setReviewQueue(prev => prev.slice(1));
+        if (quality === 'forget' || quality === 'hard') {
+            const updatedRecord = startSameDayReview(record, quality, today);
+            updateRecord(updatedRecord);
+            setReviewQueue(prev => reinsertReviewItem(prev, updatedRecord));
             setIsFlipped(false);
-        } else {
-            let newStage = record.reviewStage;
-            if (quality === 'forget') newStage = 0;
-            else if (quality === 'hard') newStage = Math.max(0, record.reviewStage - 1);
-
-            const updatedRecord = { ...record, reviewStage: newStage };
-            updateRecord(updatedRecord); 
-
-            setReviewQueue(prev => {
-                const rest = prev.slice(1);
-                const insertIndex = Math.min(rest.length, 3);
-                const newQueue = [...rest];
-                newQueue.splice(insertIndex, 0, updatedRecord);
-                return newQueue;
-            });
-            setIsFlipped(false);
+            return;
         }
+
+        if (isSameDayReviewActive(record, today)) {
+            const { completed, record: updatedRecord } = progressSameDayReview(record, today);
+            updateRecord(updatedRecord);
+
+            if (completed) {
+                setReviewQueue(prev => prev.slice(1).filter(item => item.id !== updatedRecord.id));
+            } else {
+                setReviewQueue(prev => reinsertReviewItem(prev, updatedRecord));
+            }
+            setIsFlipped(false);
+            return;
+        }
+
+        const interval = getNextReviewInterval(record.reviewStage, isReinforce);
+        if (interval === null) {
+            handleMaster(record.id);
+            return;
+        }
+        const newStage = record.reviewStage + 1;
+        const nextDate = new Date();
+        nextDate.setDate(nextDate.getDate() + interval);
+        const nextDateStr = nextDate.toISOString().split('T')[0];
+
+        updateRecord({
+            ...clearSameDayReviewFields(record),
+            reviewStage: newStage,
+            nextReviewDate: nextDateStr
+        });
+        setReviewQueue(prev => prev.slice(1));
+        setIsFlipped(false);
     };
 
     const handleUndoReview = () => {
         if (reviewHistory.length === 0) return;
-        const lastRecordState = reviewHistory[reviewHistory.length - 1]; 
-        updateRecord(lastRecordState);
-        setReviewQueue(prev => {
-            const cleanPrev = prev.filter(r => r.id !== lastRecordState.id);
-            return [lastRecordState, ...cleanPrev];
-        });
+        const lastEntry = reviewHistory[reviewHistory.length - 1];
+        updateRecord(lastEntry.record);
+        setReviewQueue(lastEntry.queue);
         setReviewHistory(prev => prev.slice(0, -1));
         setIsFlipped(false);
     };
 
     const handleMaster = (id) => {
         const r = records.find(r => r.id === id);
-        updateRecord({ ...r, mastered: true, masteredDate: new Date().toISOString().split('T')[0] });
+        updateRecord({
+            ...clearSameDayReviewFields(r),
+            mastered: true,
+            masteredDate: getTodayDateString()
+        });
         setReviewQueue(prev => prev.filter(item => item.id !== id));
         setIsFlipped(false);
     };
 
     const handleResurrect = (id) => {
         const r = records.find(r => r.id === id);
-        updateRecord({ ...r, mastered: false, reviewStage: 0, nextReviewDate: new Date().toISOString().split('T')[0] });
+        updateRecord({
+            ...clearSameDayReviewFields(r),
+            mastered: false,
+            masteredDate: null,
+            reviewStage: 0,
+            nextReviewDate: getTodayDateString()
+        });
     };
 
     const toggleReadingPractice = (id) => {
         const r = records.find(r => r.id === id);
-        updateRecord({ ...r, needsReadingPractice: !r.needsReadingPractice, reviewStage: 0, nextReviewDate: new Date().toISOString().split('T')[0] });
+        updateRecord({
+            ...clearSameDayReviewFields(r),
+            needsReadingPractice: !r.needsReadingPractice,
+            reviewStage: 0,
+            nextReviewDate: getTodayDateString()
+        });
     };
 
     const extractReadingFromAnalysis = (text) => {
@@ -698,7 +739,7 @@ export default function SmartVocabularyApp() {
             }
         }
         if (listFilterDate !== 'all') {
-            const today = new Date().toISOString().split('T')[0];
+            const today = getTodayDateString();
             if (listFilterDate === 'overdue') res = res.filter(r => !r.mastered && r.nextReviewDate < today);
             else if (listFilterDate === 'today') res = res.filter(r => !r.mastered && r.nextReviewDate === today);
             else if (listFilterDate === 'tomorrow') {

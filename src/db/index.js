@@ -101,6 +101,9 @@ async function initializeDatabase() {
             reading TEXT,
             review_stage INTEGER DEFAULT 0,
             next_review_date TEXT,
+            same_day_review_date TEXT,
+            same_day_review_target INTEGER DEFAULT 0,
+            same_day_review_done INTEGER DEFAULT 0,
             mastered INTEGER DEFAULT 0,
             mastered_date TEXT,
             needs_reading_practice INTEGER DEFAULT 0,
@@ -122,6 +125,9 @@ async function initializeDatabase() {
 
     await ensureColumn('users', 'settings', 'TEXT');
     await ensureColumn('records', 'custom_meaning', 'TEXT');
+    await ensureColumn('records', 'same_day_review_date', 'TEXT');
+    await ensureColumn('records', 'same_day_review_target', 'INTEGER DEFAULT 0');
+    await ensureColumn('records', 'same_day_review_done', 'INTEGER DEFAULT 0');
     await ensureColumn('invite_codes', 'used_count', 'INTEGER DEFAULT 0');
     await ensureColumn('invite_codes', 'is_active', 'INTEGER DEFAULT 1');
     await ensureColumn('invite_codes', 'created_by_user_id', 'INTEGER');

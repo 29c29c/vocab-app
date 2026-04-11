@@ -19,6 +19,9 @@ function normalizeLegacyRecord(record) {
         'nextReviewDate',
         'reading',
         'reviewStage',
+        'sameDayReviewDate',
+        'sameDayReviewDone',
+        'sameDayReviewTarget',
         'sentence',
         'word'
     ]);
@@ -38,6 +41,9 @@ function normalizeLegacyRecord(record) {
             : readOptionalString(input.nextReviewDate, '下次复习日期', { maxLength: 64 }),
         reading: readOptionalString(input.reading, '音标'),
         reviewStage: input.reviewStage === undefined ? 0 : readInteger(input.reviewStage, '复习阶段', { max: 100000, min: 0 }),
+        sameDayReviewDate: readNullableString(input.sameDayReviewDate, '当天巩固日期', { maxLength: 64 }),
+        sameDayReviewDone: input.sameDayReviewDone === undefined ? 0 : readInteger(input.sameDayReviewDone, '当天巩固已完成次数', { max: 100000, min: 0 }),
+        sameDayReviewTarget: input.sameDayReviewTarget === undefined ? 0 : readInteger(input.sameDayReviewTarget, '当天巩固目标次数', { max: 100000, min: 0 }),
         sentence: readOptionalString(input.sentence, '例句'),
         word: input.word === undefined || input.word === null ? null : readOptionalString(input.word, '单词', { maxLength: 255 })
     };

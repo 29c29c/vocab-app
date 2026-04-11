@@ -24,10 +24,13 @@ export async function insertRecord(record) {
             reading,
             review_stage,
             next_review_date,
+            same_day_review_date,
+            same_day_review_target,
+            same_day_review_done,
             mastered,
             mastered_date,
             needs_reading_practice
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             record.userId,
             record.date,
@@ -39,6 +42,9 @@ export async function insertRecord(record) {
             record.reading,
             record.reviewStage,
             record.nextReviewDate,
+            record.sameDayReviewDate,
+            record.sameDayReviewTarget,
+            record.sameDayReviewDone,
             record.mastered,
             record.masteredDate,
             record.needsReadingPractice
@@ -51,6 +57,9 @@ export async function updateRecordById({ id, userId, record }) {
         `UPDATE records SET
             review_stage = ?,
             next_review_date = ?,
+            same_day_review_date = ?,
+            same_day_review_target = ?,
+            same_day_review_done = ?,
             mastered = ?,
             mastered_date = ?,
             custom_meaning = ?,
@@ -61,6 +70,9 @@ export async function updateRecordById({ id, userId, record }) {
         [
             record.reviewStage,
             record.nextReviewDate,
+            record.sameDayReviewDate,
+            record.sameDayReviewTarget,
+            record.sameDayReviewDone,
             record.mastered,
             record.masteredDate,
             record.customMeaning,
@@ -93,10 +105,13 @@ export async function replaceUserRecords(userId, records) {
                 reading,
                 review_stage,
                 next_review_date,
+                same_day_review_date,
+                same_day_review_target,
+                same_day_review_done,
                 mastered,
                 mastered_date,
                 needs_reading_practice
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         );
 
         try {
@@ -112,6 +127,9 @@ export async function replaceUserRecords(userId, records) {
                     record.reading,
                     record.reviewStage,
                     record.nextReviewDate,
+                    record.sameDayReviewDate,
+                    record.sameDayReviewTarget,
+                    record.sameDayReviewDone,
                     record.mastered,
                     record.masteredDate,
                     record.needsReadingPractice
