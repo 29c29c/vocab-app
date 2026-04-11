@@ -46,8 +46,12 @@ export default function MeaningSection({ record, onUpdate }) {
         setIsEditing(false);
     };
 
+    const stopCardFlip = event => {
+        event.stopPropagation();
+    };
+
     return (
-        <div className="space-y-4">
+        <div className="space-y-4" onClick={stopCardFlip} onMouseDown={stopCardFlip}>
             <div className="bg-yellow-50/50 border border-yellow-100 rounded-xl p-4 transition-all hover:border-yellow-200">
                 <div className="flex justify-between items-start mb-2">
                     <h4 className="text-xs font-bold text-yellow-600 uppercase tracking-wider flex items-center gap-1">
