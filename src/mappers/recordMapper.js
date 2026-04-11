@@ -2,8 +2,11 @@ export function mapRecordRowToApiRecord(row) {
     return {
         aiAnalysis: row.ai_analysis,
         aiImage: row.ai_image,
+        createdAt: row.created_at,
+        creationSource: row.creation_source || 'manual',
         customMeaning: row.custom_meaning,
         date: row.date,
+        dictionaryMeaning: row.dictionary_meaning || '',
         focusLastReviewDate: row.focus_last_review_date,
         focusRecoveryStreak: row.focus_recovery_streak,
         forgetCount: row.forget_count,
@@ -25,11 +28,16 @@ export function mapRecordRowToApiRecord(row) {
 }
 
 export function mapCreatePayloadToDbRecord(userId, payload) {
+    const createdAt = new Date().toISOString();
+
     return {
         aiAnalysis: payload.aiAnalysis || '',
         aiImage: '',
+        createdAt,
+        creationSource: payload.creationSource || 'manual',
         customMeaning: payload.customMeaning || '',
         date: payload.date,
+        dictionaryMeaning: payload.dictionaryMeaning || '',
         focusLastReviewDate: null,
         focusRecoveryStreak: 0,
         forgetCount: 0,
@@ -53,8 +61,11 @@ export function mapCreatePayloadToDbRecord(userId, payload) {
 export function mapInsertedRecordToApiRecord(id, dbRecord) {
     return {
         aiAnalysis: dbRecord.aiAnalysis,
+        createdAt: dbRecord.createdAt,
+        creationSource: dbRecord.creationSource,
         customMeaning: dbRecord.customMeaning,
         date: dbRecord.date,
+        dictionaryMeaning: dbRecord.dictionaryMeaning,
         focusLastReviewDate: dbRecord.focusLastReviewDate,
         focusRecoveryStreak: dbRecord.focusRecoveryStreak,
         forgetCount: dbRecord.forgetCount,
@@ -78,6 +89,7 @@ export function mapUpdatePayloadToDbRecord(payload) {
     return {
         aiAnalysis: payload.aiAnalysis || '',
         customMeaning: payload.customMeaning || '',
+        dictionaryMeaning: payload.dictionaryMeaning || '',
         focusLastReviewDate: payload.focusLastReviewDate ?? null,
         focusRecoveryStreak: payload.focusRecoveryStreak ?? 0,
         forgetCount: payload.forgetCount ?? 0,
@@ -99,8 +111,11 @@ export function mapLegacyPayloadToDbRecord(userId, payload) {
     return {
         aiAnalysis: payload.aiAnalysis || '',
         aiImage: payload.aiImage || '',
+        createdAt: payload.createdAt ?? payload.date ?? new Date().toISOString(),
+        creationSource: payload.creationSource || 'manual',
         customMeaning: payload.customMeaning || '',
         date: payload.date ?? null,
+        dictionaryMeaning: payload.dictionaryMeaning || '',
         focusLastReviewDate: payload.focusLastReviewDate ?? null,
         focusRecoveryStreak: Number.isInteger(payload.focusRecoveryStreak) ? payload.focusRecoveryStreak : 0,
         forgetCount: Number.isInteger(payload.forgetCount) ? payload.forgetCount : 0,

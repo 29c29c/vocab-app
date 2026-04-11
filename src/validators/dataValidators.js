@@ -4,15 +4,34 @@ import {
     readBooleanLike,
     readInteger,
     readNullableString,
-    readOptionalString
+    readOptionalString,
+    readRequiredString
 } from './helpers.js';
+
+const ALLOWED_CREATION_SOURCES = new Set(['manual', 'article', 'writing', 'import', 'batch']);
+
+function readCreationSource(value) {
+    if (value === undefined || value === null || value === '') {
+        return 'manual';
+    }
+
+    const normalized = readRequiredString(value, '记录来源', { maxLength: 32 });
+    if (!ALLOWED_CREATION_SOURCES.has(normalized)) {
+        throw new AppError(400, '记录来源格式错误');
+    }
+
+    return normalized;
+}
 
 function normalizeLegacyRecord(record) {
     const input = pickAllowedKeys(record, [
         'aiAnalysis',
         'aiImage',
+        'createdAt',
+        'creationSource',
         'customMeaning',
         'date',
+        'dictionaryMeaning',
         'focusLastReviewDate',
         'focusRecoveryStreak',
         'forgetCount',
@@ -34,8 +53,13 @@ function normalizeLegacyRecord(record) {
     return {
         aiAnalysis: readOptionalString(input.aiAnalysis, 'AI 分析'),
         aiImage: readOptionalString(input.aiImage, 'AI 图片'),
+        createdAt: input.createdAt === undefined || input.createdAt === null
+            ? null
+            : readOptionalString(input.createdAt, '创建时间', { maxLength: 128 }),
+        creationSource: readCreationSource(input.creationSource),
         customMeaning: readOptionalString(input.customMeaning, '自定义释义'),
         date: input.date === undefined || input.date === null ? null : readOptionalString(input.date, '日期', { maxLength: 64 }),
+        dictionaryMeaning: readOptionalString(input.dictionaryMeaning, '词典释义'),
         focusLastReviewDate: readNullableString(input.focusLastReviewDate, '重点巩固上次首评日期', { maxLength: 64 }),
         focusRecoveryStreak: input.focusRecoveryStreak === undefined ? 0 : readInteger(input.focusRecoveryStreak, '重点巩固恢复连胜', { max: 100000, min: 0 }),
         forgetCount: input.forgetCount === undefined ? 0 : readInteger(input.forgetCount, '忘记次数', { max: 100000, min: 0 }),

@@ -19,6 +19,8 @@ export async function insertRecord(record) {
             word,
             sentence,
             custom_meaning,
+            dictionary_meaning,
+            creation_source,
             ai_analysis,
             ai_image,
             reading,
@@ -34,14 +36,17 @@ export async function insertRecord(record) {
             focus_last_review_date,
             mastered,
             mastered_date,
-            needs_reading_practice
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            needs_reading_practice,
+            created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             record.userId,
             record.date,
             record.word,
             record.sentence,
             record.customMeaning,
+            record.dictionaryMeaning,
+            record.creationSource,
             record.aiAnalysis,
             record.aiImage,
             record.reading,
@@ -57,7 +62,8 @@ export async function insertRecord(record) {
             record.focusLastReviewDate,
             record.mastered,
             record.masteredDate,
-            record.needsReadingPractice
+            record.needsReadingPractice,
+            record.createdAt
         ]
     );
 }
@@ -78,6 +84,7 @@ export async function updateRecordById({ id, userId, record }) {
             mastered = ?,
             mastered_date = ?,
             custom_meaning = ?,
+            dictionary_meaning = ?,
             ai_analysis = ?,
             reading = ?,
             needs_reading_practice = ?
@@ -96,6 +103,7 @@ export async function updateRecordById({ id, userId, record }) {
             record.mastered,
             record.masteredDate,
             record.customMeaning,
+            record.dictionaryMeaning,
             record.aiAnalysis,
             record.reading,
             record.needsReadingPractice,
@@ -120,6 +128,8 @@ export async function replaceUserRecords(userId, records) {
                 word,
                 sentence,
                 custom_meaning,
+                dictionary_meaning,
+                creation_source,
                 ai_analysis,
                 ai_image,
                 reading,
@@ -135,8 +145,9 @@ export async function replaceUserRecords(userId, records) {
                 focus_last_review_date,
                 mastered,
                 mastered_date,
-                needs_reading_practice
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                needs_reading_practice,
+                created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         );
 
         try {
@@ -147,6 +158,8 @@ export async function replaceUserRecords(userId, records) {
                     record.word,
                     record.sentence,
                     record.customMeaning,
+                    record.dictionaryMeaning,
+                    record.creationSource,
                     record.aiAnalysis,
                     record.aiImage,
                     record.reading,
@@ -162,7 +175,8 @@ export async function replaceUserRecords(userId, records) {
                     record.focusLastReviewDate,
                     record.mastered,
                     record.masteredDate,
-                    record.needsReadingPractice
+                    record.needsReadingPractice,
+                    record.createdAt
                 ]);
             }
         } finally {

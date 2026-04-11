@@ -96,6 +96,8 @@ async function initializeDatabase() {
             word TEXT,
             sentence TEXT,
             custom_meaning TEXT,
+            dictionary_meaning TEXT,
+            creation_source TEXT DEFAULT 'manual',
             ai_analysis TEXT,
             ai_image TEXT,
             reading TEXT,
@@ -130,9 +132,11 @@ async function initializeDatabase() {
 
     await ensureColumn('users', 'settings', 'TEXT');
     await ensureColumn('records', 'custom_meaning', 'TEXT');
+    await ensureColumn('records', 'dictionary_meaning', 'TEXT');
     await ensureColumn('records', 'same_day_review_date', 'TEXT');
     await ensureColumn('records', 'same_day_review_target', 'INTEGER DEFAULT 0');
     await ensureColumn('records', 'same_day_review_done', 'INTEGER DEFAULT 0');
+    await ensureColumn('records', 'creation_source', "TEXT DEFAULT 'manual'");
     await ensureColumn('records', 'forget_count', 'INTEGER DEFAULT 0');
     await ensureColumn('records', 'hard_count', 'INTEGER DEFAULT 0');
     await ensureColumn('records', 'is_focus_review', 'INTEGER DEFAULT 0');
@@ -141,6 +145,7 @@ async function initializeDatabase() {
     await ensureColumn('invite_codes', 'used_count', 'INTEGER DEFAULT 0');
     await ensureColumn('invite_codes', 'is_active', 'INTEGER DEFAULT 1');
     await ensureColumn('invite_codes', 'created_by_user_id', 'INTEGER');
+    await rawRun("UPDATE records SET creation_source = 'manual' WHERE creation_source IS NULL OR creation_source = ''");
 
     await rawExec(`
         CREATE INDEX IF NOT EXISTS idx_records_user_id

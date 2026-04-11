@@ -12,6 +12,7 @@ import { createAdminInviteCodeRouter } from './routes/adminInviteCodeRoutes.js';
 import { createAuthRouter } from './routes/authRoutes.js';
 import { createAiRouter } from './routes/aiRoutes.js';
 import { createDataRouter } from './routes/dataRoutes.js';
+import { createDictionaryRouter } from './routes/dictionaryRoutes.js';
 import { createRecordRouter } from './routes/recordRoutes.js';
 import { createSettingsRouter } from './routes/settingsRoutes.js';
 
@@ -47,6 +48,7 @@ export function createApp({ config }) {
     }));
     app.use('/api', createSettingsRouter({ authenticateToken, jsonParsers }));
     app.use('/api', createAiRouter({ authenticateToken, jsonParsers }));
+    app.use('/api', createDictionaryRouter({ authenticateToken, jsonParsers }));
     app.use('/api', createAdminInviteCodeRouter({ authenticateToken, jsonParsers, requireAdmin }));
     app.use('/api', createDataRouter({ authenticateToken, jsonParsers }));
     app.use('/api', createRecordRouter({ authenticateToken, jsonParsers }));

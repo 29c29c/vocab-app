@@ -5,6 +5,7 @@ import {
     Printer, Trophy, Zap
 } from 'lucide-react';
 import { requestAiCompletion } from './client/aiApi.js';
+import { requestDictionaryLookup } from './client/dictionaryApi.js';
 import { DEFAULT_APP_SETTINGS, hasAiConfig, normalizeAppSettings } from './client/defaultSettings.js';
 import {
     applyReviewPerformance,
@@ -47,6 +48,21 @@ const shuffleArray = (array) => {
     return newArr;
 };
 
+const createLookupPanelEntry = (isAiEnabled) => ({
+    aiError: isAiEnabled ? '' : '未配置 AI，可稍后在词条详情中手动生成。',
+    aiResult: null,
+    aiStatus: isAiEnabled ? 'loading' : 'idle',
+    dictionaryError: '',
+    dictionaryResult: null,
+    dictionaryStatus: 'loading'
+});
+
+const getRecordSortTimestamp = record => {
+    const rawValue = record?.createdAt || record?.date || '';
+    const timestamp = new Date(rawValue).getTime();
+    return Number.isNaN(timestamp) ? 0 : timestamp;
+};
+
 // --- 主应用逻辑 ---
 export default function SmartVocabularyApp() {
     const [token, setToken] = useState(() => localStorage.getItem('auth_token'));
@@ -75,6 +91,8 @@ export default function SmartVocabularyApp() {
     const [inputWord, setInputWord] = useState('');
     const [inputSentence, setInputSentence] = useState('');
     const [inputMeaning, setInputMeaning] = useState('');
+    const [latestLookupRecordId, setLatestLookupRecordId] = useState(null);
+    const [lookupPanelState, setLookupPanelState] = useState({});
 
     // 复习
     const [reviewQueue, setReviewQueue] = useState([]); 
@@ -98,6 +116,7 @@ export default function SmartVocabularyApp() {
     const [inviteCodeDraft, setInviteCodeDraft] = useState({ code: '', maxUses: '1' });
     const [inviteCodeMutatingId, setInviteCodeMutatingId] = useState(null);
     const [isCreatingInviteCode, setIsCreatingInviteCode] = useState(false);
+    const recordsRef = useRef([]);
     const { provider } = settings;
     const publicSettings = useMemo(() => ({
         provider: settings.provider,
@@ -130,6 +149,8 @@ export default function SmartVocabularyApp() {
         setAdminStatusChecked(false);
         setInviteCodes([]);
         setInviteCodesLoading(false);
+        setLatestLookupRecordId(null);
+        setLookupPanelState({});
         setInviteCodeError('');
         setInviteCodeDraft({ code: '', maxUses: '1' });
         setInviteCodeMutatingId(null);
@@ -151,6 +172,10 @@ export default function SmartVocabularyApp() {
     }, [fetchWithAuth]);
 
     // --- Init ---
+    useEffect(() => {
+        recordsRef.current = records;
+    }, [records]);
+
     useEffect(() => {
         if (!token) return undefined;
 
@@ -427,12 +452,35 @@ export default function SmartVocabularyApp() {
 
     // --- CRUD Handlers (实时保存核心) ---
 
+    const updateLookupState = useCallback((recordId, patch) => {
+        setLookupPanelState(previous => {
+            const current = previous[recordId] || {
+                aiError: '',
+                aiResult: null,
+                aiStatus: 'idle',
+                dictionaryError: '',
+                dictionaryResult: null,
+                dictionaryStatus: 'idle'
+            };
+            const nextPatch = typeof patch === 'function' ? patch(current) : patch;
+
+            return {
+                ...previous,
+                [recordId]: {
+                    ...current,
+                    ...nextPatch
+                }
+            };
+        });
+    }, []);
+
     // 1. 增 (Create)
     const handleAddRecord = async (e) => {
         e.preventDefault();
         if (!inputWord) return;
         
         const payload = {
+            creationSource: 'manual',
             date: inputDate,
             word: inputWord,
             sentence: inputSentence,
@@ -453,13 +501,20 @@ export default function SmartVocabularyApp() {
 
             // 更新本地状态
             setRecords(p => [...p, newRecord]);
-            
-            // 自动触发 AI (如果配置了)
-            if (hasAiConfig(settings)) await callAIAnalysis(newRecord);
+            setLatestLookupRecordId(newRecord.id);
+            setLookupPanelState(previous => ({
+                ...previous,
+                [newRecord.id]: createLookupPanelEntry(hasAiConfig(settings))
+            }));
             
             // 清空输入
             setInputWord(''); setInputSentence(''); setInputMeaning('');
             setSaveStatus('saved');
+
+            void requestDictionaryForRecord(newRecord);
+            if (hasAiConfig(settings)) {
+                void callAIAnalysis(newRecord, { silent: true, updateLookupPanel: true });
+            }
         } catch (err) {
             console.error(err);
             setSaveStatus('error');
@@ -495,6 +550,9 @@ export default function SmartVocabularyApp() {
 
         const originalRecords = [...records];
         setRecords(p => p.filter(r => r.id !== id));
+        if (latestLookupRecordId === id) {
+            setLatestLookupRecordId(null);
+        }
 
         try {
             await fetchWithAuth(`${API_BASE}/records/${id}`, { method: 'DELETE' });
@@ -505,13 +563,14 @@ export default function SmartVocabularyApp() {
     };
 
     // 4. 批量添加 (Batch Add)
-    const handleBatchAddRecords = async (newItems) => {
+    const handleBatchAddRecords = async (newItems, creationSource = 'batch') => {
         setSaveStatus('saving');
         const today = getTodayDateString();
         
         // 并发发送请求
         const promises = newItems.map(item => {
             const payload = {
+                creationSource,
                 date: today,
                 word: item.word,
                 sentence: item.sentence || '',
@@ -521,7 +580,13 @@ export default function SmartVocabularyApp() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
-            }).then(res => res.json());
+            }).then(async res => {
+                if (!res.ok) {
+                    const data = await res.json().catch(() => ({}));
+                    throw new Error(data?.error || '保存失败');
+                }
+                return res.json();
+            });
         });
 
         try {
@@ -576,6 +641,24 @@ export default function SmartVocabularyApp() {
     const focusBoardRecords = useMemo(() => {
         return sortFocusRecords(records.filter(record => !record.mastered && record.isFocusReview));
     }, [records]);
+
+    const recentManualEntries = useMemo(() => {
+        return records
+            .filter(record => (record.creationSource || 'manual') === 'manual')
+            .sort((left, right) => {
+                const timestampDiff = getRecordSortTimestamp(right) - getRecordSortTimestamp(left);
+                return timestampDiff !== 0 ? timestampDiff : right.id - left.id;
+            })
+            .slice(0, 5);
+    }, [records]);
+
+    const latestLookupRecord = useMemo(() => {
+        return records.find(record => record.id === latestLookupRecordId) || null;
+    }, [latestLookupRecordId, records]);
+
+    const latestLookupState = latestLookupRecordId
+        ? lookupPanelState[latestLookupRecordId] || null
+        : null;
 
     // --- Review Handlers ---
     useEffect(() => {
@@ -705,14 +788,101 @@ export default function SmartVocabularyApp() {
         return kanaMatch ? kanaMatch[0] : '';
     };
 
-    const callAIAnalysis = async (record, silent = false) => {
-        if (!hasAiConfig(settings)) { if (!silent) alert("请配置 API Key"); return; }
+    const requestDictionaryForRecord = async (record) => {
+        updateLookupState(record.id, {
+            dictionaryError: '',
+            dictionaryStatus: 'loading'
+        });
+
+        try {
+            const dictionaryResult = await requestDictionaryLookup(fetchWithAuth, {
+                sentence: record.sentence,
+                word: record.word
+            });
+
+            updateLookupState(record.id, {
+                dictionaryError: '',
+                dictionaryResult,
+                dictionaryStatus: 'success'
+            });
+
+            const currentRecord = recordsRef.current.find(item => item.id === record.id);
+            if (currentRecord) {
+                const nextDictionaryMeaning = dictionaryResult.definitions?.[0] || currentRecord.dictionaryMeaning || '';
+                const nextReading = currentRecord.reading || dictionaryResult.reading || '';
+                const shouldPersistDictionaryData =
+                    nextDictionaryMeaning !== (currentRecord.dictionaryMeaning || '') ||
+                    nextReading !== (currentRecord.reading || '');
+
+                if (shouldPersistDictionaryData) {
+                    updateRecord({
+                        ...currentRecord,
+                        dictionaryMeaning: nextDictionaryMeaning,
+                        reading: nextReading
+                    });
+                }
+            }
+        } catch (error) {
+            console.error(error);
+            updateLookupState(record.id, {
+                dictionaryError: error.message || '词典请求失败',
+                dictionaryStatus: 'error'
+            });
+        }
+    };
+
+    const callAIAnalysis = async (record, options = {}) => {
+        const { silent = false, updateLookupPanel = false } = options;
+        if (!hasAiConfig(settings)) {
+            if (updateLookupPanel) {
+                updateLookupState(record.id, {
+                    aiError: '未配置 AI，可稍后在词条详情中手动生成。',
+                    aiStatus: 'idle'
+                });
+            }
+            if (!silent) alert("请配置 API Key");
+            return;
+        }
+
+        if (updateLookupPanel) {
+            updateLookupState(record.id, {
+                aiError: '',
+                aiResult: null,
+                aiStatus: 'loading'
+            });
+        }
+
         const promptText = `我正在学习单词。单词：${record.word}。${record.sentence ? '句子：' + record.sentence : '请根据单词造句并解析'}。${record.customMeaning ? '用户备注含义：' + record.customMeaning : ''}。请严格按照以下 Markdown 格式解析：1. **语言识别**: (英语/日语) 2. **标音**: (日语提供假名，英语提供音标) 3. **确切含义**: (解释含义) 4. **语法分析**: (简要说明) 5. **固定搭配**: (列出3个) 请保持简洁。`;
         try {
             const aiContent = await requestAiPrompt(promptText);
             const reading = extractReadingFromAnalysis(aiContent);
-            updateRecord({ ...record, aiAnalysis: aiContent, reading: reading || record.reading });
-        } catch (e) { console.error(e); if (!silent) alert(e.message); }
+            const currentRecord = recordsRef.current.find(item => item.id === record.id);
+
+            if (currentRecord) {
+                updateRecord({
+                    ...currentRecord,
+                    aiAnalysis: aiContent,
+                    reading: currentRecord.reading || reading
+                });
+            }
+
+            if (updateLookupPanel) {
+                updateLookupState(record.id, {
+                    aiError: '',
+                    aiResult: { content: aiContent, reading },
+                    aiStatus: 'success'
+                });
+            }
+        } catch (e) {
+            console.error(e);
+            if (updateLookupPanel) {
+                updateLookupState(record.id, {
+                    aiError: e.message || 'AI 请求失败',
+                    aiStatus: 'error'
+                });
+            }
+            if (!silent) alert(e.message);
+        }
     };
 
     const handleBatchAnalyze = async () => {
@@ -721,7 +891,7 @@ export default function SmartVocabularyApp() {
         if (pending.length === 0) return alert("没有需要解析的单词");
         if (!confirm(`即将解析 ${pending.length} 个单词，请勿关闭页面。`)) return;
         setIsBatchAnalyzing(true);
-        for (const r of pending) { await callAIAnalysis(r, true); await new Promise(res => setTimeout(res, 800)); }
+        for (const r of pending) { await callAIAnalysis(r, { silent: true }); await new Promise(res => setTimeout(res, 800)); }
         setIsBatchAnalyzing(false); alert("批量解析完成");
     };
 
@@ -747,7 +917,7 @@ export default function SmartVocabularyApp() {
                 });
 
                 if (itemsToAdd.length > 0) {
-                     handleBatchAddRecords(itemsToAdd); // 使用批量添加接口
+                     handleBatchAddRecords(itemsToAdd, 'import'); // 使用批量添加接口
                 } else { alert("Excel 没找到有效数据 (需包含'单词'列)"); }
             } catch (error) {
                 console.error(error);
@@ -979,7 +1149,7 @@ export default function SmartVocabularyApp() {
                     <WritingPolisher 
                         settings={settings}
                         requestAiPrompt={requestAiPrompt}
-                        onAddWords={handleBatchAddRecords}
+                        onAddWords={items => handleBatchAddRecords(items, 'writing')}
                         onCancel={() => setView('input')}
                     />
                 )}
@@ -988,7 +1158,7 @@ export default function SmartVocabularyApp() {
                     <ArticleAnalyzer 
                         settings={settings}
                         requestAiPrompt={requestAiPrompt}
-                        onAddWords={handleBatchAddRecords}
+                        onAddWords={items => handleBatchAddRecords(items, 'article')}
                         onCancel={() => setView('input')}
                     />
                 )}
@@ -999,11 +1169,15 @@ export default function SmartVocabularyApp() {
                         inputMeaning={inputMeaning}
                         inputSentence={inputSentence}
                         inputWord={inputWord}
+                        latestLookupRecord={latestLookupRecord}
+                        latestLookupState={latestLookupState}
+                        lookupPanelState={lookupPanelState}
                         onInputDateChange={setInputDate}
                         onInputMeaningChange={setInputMeaning}
                         onInputSentenceChange={setInputSentence}
                         onInputWordChange={setInputWord}
                         onSubmit={handleAddRecord}
+                        recentManualEntries={recentManualEntries}
                         saveStatus={saveStatus}
                     />
                 )}
