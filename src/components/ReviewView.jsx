@@ -37,13 +37,46 @@ function MasteredList({ onResurrect, records }) {
     );
 }
 
+function FocusReviewList({ records }) {
+    if (records.length === 0) {
+        return <div className="text-center py-10 text-slate-400">还没有进入重点巩固的单词。</div>;
+    }
+
+    return (
+        <div className="grid gap-3">
+            {records.map(record => (
+                <div key={record.id} className="bg-white p-4 rounded-xl border border-rose-100 shadow-sm flex justify-between items-center gap-4">
+                    <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                            <Zap className="w-4 h-4 text-rose-500" />
+                            <h3 className="font-bold text-slate-800">{record.word}</h3>
+                            <span className="text-[11px] px-2 py-0.5 rounded-full bg-rose-100 text-rose-700">
+                                严重度 {record.forgetCount * 2 + record.hardCount}
+                            </span>
+                        </div>
+                        <div className="text-xs text-slate-500 mt-1 flex flex-wrap gap-3">
+                            <span>下次复习 {record.nextReviewDate}</span>
+                            <span>忘记 {record.forgetCount}</span>
+                            <span>模糊 {record.hardCount}</span>
+                            <span>恢复连胜 {record.focusRecoveryStreak}/2</span>
+                        </div>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
 export default function ReviewView({
     currentQuestionType,
     currentReviewItem,
+    focusBoardRecords,
+    focusQueueCount,
     handleMaster,
     handleReviewResult,
     handleUndoReview,
     isFlipped,
+    mainQueueCount,
     onResurrect,
     playTTS,
     records,
@@ -62,7 +95,13 @@ export default function ReviewView({
                         onClick={() => setReviewTab('queue')}
                         className={`px-6 py-2 rounded-full text-sm font-bold transition ${reviewTab === 'queue' ? 'bg-white text-indigo-700 shadow' : 'text-slate-500'}`}
                     >
-                        今日任务 ({reviewQueue.length})
+                        今日任务 ({mainQueueCount})
+                    </button>
+                    <button
+                        onClick={() => setReviewTab('focus')}
+                        className={`px-6 py-2 rounded-full text-sm font-bold transition ${reviewTab === 'focus' ? 'bg-white text-rose-600 shadow' : 'text-slate-500'}`}
+                    >
+                        重点巩固 ({focusQueueCount})
                     </button>
                     <button
                         onClick={() => setReviewTab('mastered')}
@@ -73,14 +112,25 @@ export default function ReviewView({
                 </div>
             </div>
 
-            {reviewTab === 'queue' && (
+            {(reviewTab === 'queue' || reviewTab === 'focus') && (
                 <div className="max-w-md mx-auto relative min-h-[500px]">
                     {reviewQueue.length === 0 ? (
-                        <div className="text-center py-20 bg-white rounded-3xl shadow-sm border border-slate-100">
-                            <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4 text-4xl">🎉</div>
-                            <h3 className="text-xl font-bold text-slate-800">今日任务已完成！</h3>
-                            <p className="text-slate-500 mt-2">休息一下，明天继续加油。</p>
-                        </div>
+                        reviewTab === 'queue' ? (
+                            <div className="text-center py-20 bg-white rounded-3xl shadow-sm border border-slate-100">
+                                <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4 text-4xl">🎉</div>
+                                <h3 className="text-xl font-bold text-slate-800">今日任务已完成！</h3>
+                                <p className="text-slate-500 mt-2">休息一下，明天继续加油。</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-5">
+                                <div className="text-center py-14 bg-white rounded-3xl shadow-sm border border-rose-100">
+                                    <div className="w-20 h-20 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4 text-4xl">🔥</div>
+                                    <h3 className="text-xl font-bold text-slate-800">今天没有重点巩固任务</h3>
+                                    <p className="text-slate-500 mt-2">下面是已进入重点巩固的单词列表，后续到期会在这里继续复习。</p>
+                                </div>
+                                <FocusReviewList records={focusBoardRecords} />
+                            </div>
+                        )
                     ) : (
                         <div className="perspective-1000">
                             <div className="flex items-center justify-between text-xs text-slate-400 mb-2 px-2">

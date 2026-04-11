@@ -1,10 +1,19 @@
 export const FORGET_SAME_DAY_TARGET = 3;
 export const HARD_SAME_DAY_TARGET = 2;
+export const FOCUS_FORGET_THRESHOLD = 3;
+export const FOCUS_HARD_THRESHOLD = 5;
+export const FOCUS_RECOVERY_STREAK_TARGET = 2;
 
 export const EMPTY_SAME_DAY_REVIEW = {
     sameDayReviewDate: null,
     sameDayReviewDone: 0,
     sameDayReviewTarget: 0
+};
+
+export const EMPTY_FOCUS_REVIEW = {
+    focusLastReviewDate: null,
+    focusRecoveryStreak: 0,
+    isFocusReview: false
 };
 
 export function getTodayDateString() {
@@ -24,13 +33,25 @@ export function clearSameDayReviewFields(record) {
     };
 }
 
+export function clearFocusReviewFields(record) {
+    return {
+        ...record,
+        ...EMPTY_FOCUS_REVIEW
+    };
+}
+
 export function normalizeReviewRecord(record, today = getTodayDateString()) {
     const normalized = {
         ...record,
         customMeaning: record.customMeaning || '',
-        mastered: record.mastered ?? false,
+        focusLastReviewDate: record.focusLastReviewDate ?? null,
+        focusRecoveryStreak: Number.isInteger(record.focusRecoveryStreak) ? record.focusRecoveryStreak : 0,
+        forgetCount: Number.isInteger(record.forgetCount) ? record.forgetCount : 0,
+        hardCount: Number.isInteger(record.hardCount) ? record.hardCount : 0,
+        isFocusReview: Boolean(record.isFocusReview),
+        mastered: Boolean(record.mastered),
         masteredDate: record.masteredDate || null,
-        needsReadingPractice: record.needsReadingPractice ?? false,
+        needsReadingPractice: Boolean(record.needsReadingPractice),
         nextReviewDate: record.nextReviewDate || today,
         reading: record.reading || '',
         reviewStage: record.reviewStage ?? 0,
@@ -51,6 +72,27 @@ export function normalizeReviewRecord(record, today = getTodayDateString()) {
     }
 
     return normalized;
+}
+
+export function getFocusSeverityScore(record) {
+    return (record.forgetCount ?? 0) * 2 + (record.hardCount ?? 0);
+}
+
+export function sortFocusRecords(records) {
+    return [...records].sort((left, right) => {
+        const leftDate = left.nextReviewDate || '';
+        const rightDate = right.nextReviewDate || '';
+        if (leftDate !== rightDate) {
+            return leftDate.localeCompare(rightDate);
+        }
+
+        const severityDiff = getFocusSeverityScore(right) - getFocusSeverityScore(left);
+        if (severityDiff !== 0) {
+            return severityDiff;
+        }
+
+        return left.id - right.id;
+    });
 }
 
 export function isSameDayReviewActive(record, today = getTodayDateString()) {
@@ -89,6 +131,52 @@ export function progressSameDayReview(record, today = getTodayDateString()) {
     };
 }
 
+export function applyReviewPerformance(record, quality, today = getTodayDateString()) {
+    const updatedRecord = {
+        ...record,
+        forgetCount: record.forgetCount ?? 0,
+        hardCount: record.hardCount ?? 0,
+        focusRecoveryStreak: record.focusRecoveryStreak ?? 0,
+        focusLastReviewDate: record.focusLastReviewDate ?? null,
+        isFocusReview: record.isFocusReview ?? false
+    };
+
+    if (quality === 'forget') {
+        updatedRecord.forgetCount += 1;
+    } else if (quality === 'hard') {
+        updatedRecord.hardCount += 1;
+    }
+
+    if (updatedRecord.isFocusReview && updatedRecord.focusLastReviewDate !== today) {
+        updatedRecord.focusRecoveryStreak = quality === 'easy'
+            ? updatedRecord.focusRecoveryStreak + 1
+            : 0;
+        updatedRecord.focusLastReviewDate = today;
+    }
+
+    if (
+        !updatedRecord.isFocusReview &&
+        (
+            updatedRecord.forgetCount >= FOCUS_FORGET_THRESHOLD ||
+            updatedRecord.hardCount >= FOCUS_HARD_THRESHOLD
+        )
+    ) {
+        updatedRecord.isFocusReview = true;
+        updatedRecord.focusRecoveryStreak = 0;
+        updatedRecord.focusLastReviewDate = null;
+    }
+
+    return updatedRecord;
+}
+
+export function maybeExitFocusReview(record) {
+    if (!record.isFocusReview || record.focusRecoveryStreak < FOCUS_RECOVERY_STREAK_TARGET) {
+        return record;
+    }
+
+    return clearFocusReviewFields(record);
+}
+
 export function getRandomRequeueIndex(restLength) {
     if (restLength <= 0) return 0;
 
@@ -118,4 +206,46 @@ export function reinsertReviewItem(queue, record) {
     const nextQueue = [...rest];
     nextQueue.splice(insertIndex, 0, record);
     return nextQueue;
+}
+
+export function reconcileReviewQueue(previousQueue, candidates, { shuffleOnInit = false } = {}) {
+    if (!Array.isArray(candidates) || candidates.length === 0) {
+        return [];
+    }
+
+    if (!Array.isArray(previousQueue) || previousQueue.length === 0) {
+        return shuffleOnInit ? reinsertInitialQueue(candidates) : [...candidates];
+    }
+
+    const candidateMap = new Map(candidates.map(candidate => [candidate.id, candidate]));
+    const nextQueue = previousQueue
+        .map(item => candidateMap.get(item.id))
+        .filter(Boolean);
+    const existingIds = new Set(nextQueue.map(item => item.id));
+    const missingItems = candidates.filter(candidate => !existingIds.has(candidate.id));
+
+    if (shuffleOnInit && missingItems.length > 0) {
+        nextQueue.push(...reinsertInitialQueue(missingItems));
+    } else {
+        nextQueue.push(...missingItems);
+    }
+
+    return nextQueue;
+}
+
+function reinsertInitialQueue(candidates) {
+    const queue = [];
+    for (const candidate of candidates) {
+        queue.push(candidate);
+    }
+    return shuffleArrayCopy(queue);
+}
+
+function shuffleArrayCopy(array) {
+    const newArr = [...array];
+    for (let i = newArr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+    }
+    return newArr;
 }

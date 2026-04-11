@@ -7,12 +7,17 @@ import {
 import { requestAiCompletion } from './client/aiApi.js';
 import { DEFAULT_APP_SETTINGS, hasAiConfig, normalizeAppSettings } from './client/defaultSettings.js';
 import {
+    applyReviewPerformance,
     clearSameDayReviewFields,
+    clearFocusReviewFields,
     getTodayDateString,
     isSameDayReviewActive,
+    maybeExitFocusReview,
     normalizeReviewRecord,
     progressSameDayReview,
+    reconcileReviewQueue,
     reinsertReviewItem,
+    sortFocusRecords,
     startSameDayReview
 } from './client/reviewScheduler.js';
 import { readSettingsCache, writeSettingsCache } from './client/settingsCache.js';
@@ -558,16 +563,30 @@ export default function SmartVocabularyApp() {
         return permutations[permIndex][indexInCycle];
     };
 
+    const mainDueRecords = useMemo(() => {
+        const today = getTodayDateString();
+        return records.filter(record => !record.mastered && !record.isFocusReview && record.nextReviewDate <= today);
+    }, [records]);
+
+    const focusDueRecords = useMemo(() => {
+        const today = getTodayDateString();
+        return sortFocusRecords(records.filter(record => !record.mastered && record.isFocusReview && record.nextReviewDate <= today));
+    }, [records]);
+
+    const focusBoardRecords = useMemo(() => {
+        return sortFocusRecords(records.filter(record => !record.mastered && record.isFocusReview));
+    }, [records]);
+
     // --- Review Handlers ---
     useEffect(() => {
         if (!isDataLoaded) return;
-        const today = getTodayDateString();
-        setReviewQueue(prev => {
-            if (prev.length > 0) return prev;
-            const pending = records.filter(r => !r.mastered && r.nextReviewDate <= today);
-            return shuffleArray(pending);
-        });
-    }, [records, isDataLoaded, view]);
+        if (reviewTab === 'mastered') return;
+
+        const candidates = reviewTab === 'focus' ? focusDueRecords : mainDueRecords;
+        setReviewQueue(previousQueue => reconcileReviewQueue(previousQueue, candidates, {
+            shuffleOnInit: reviewTab === 'queue'
+        }));
+    }, [focusDueRecords, isDataLoaded, mainDueRecords, reviewTab, view]);
 
     const currentReviewItem = reviewQueue[0];
     const currentQuestionType = currentReviewItem ? getQuestionType(currentReviewItem) : 'C';
@@ -581,21 +600,30 @@ export default function SmartVocabularyApp() {
         setReviewHistory(prev => [
             ...prev,
             {
+                queueTab: reviewTab,
                 queue: reviewQueue.map(item => JSON.parse(JSON.stringify(item))),
                 record: JSON.parse(JSON.stringify(record))
             }
         ]);
 
+        const performanceRecord = applyReviewPerformance(record, quality, today);
+
         if (quality === 'forget' || quality === 'hard') {
-            const updatedRecord = startSameDayReview(record, quality, today);
+            const updatedRecord = startSameDayReview(performanceRecord, quality, today);
             updateRecord(updatedRecord);
-            setReviewQueue(prev => reinsertReviewItem(prev, updatedRecord));
+
+            if (updatedRecord.isFocusReview && reviewTab !== 'focus') {
+                setReviewQueue(prev => prev.slice(1).filter(item => item.id !== updatedRecord.id));
+            } else {
+                setReviewQueue(prev => reinsertReviewItem(prev, updatedRecord));
+            }
             setIsFlipped(false);
             return;
         }
 
-        if (isSameDayReviewActive(record, today)) {
-            const { completed, record: updatedRecord } = progressSameDayReview(record, today);
+        if (isSameDayReviewActive(performanceRecord, today)) {
+            const { completed, record: progressedRecord } = progressSameDayReview(performanceRecord, today);
+            const updatedRecord = completed ? maybeExitFocusReview(progressedRecord) : progressedRecord;
             updateRecord(updatedRecord);
 
             if (completed) {
@@ -617,11 +645,12 @@ export default function SmartVocabularyApp() {
         nextDate.setDate(nextDate.getDate() + interval);
         const nextDateStr = nextDate.toISOString().split('T')[0];
 
-        updateRecord({
-            ...clearSameDayReviewFields(record),
+        const updatedRecord = maybeExitFocusReview({
+            ...clearSameDayReviewFields(performanceRecord),
             reviewStage: newStage,
             nextReviewDate: nextDateStr
         });
+        updateRecord(updatedRecord);
         setReviewQueue(prev => prev.slice(1));
         setIsFlipped(false);
     };
@@ -629,6 +658,7 @@ export default function SmartVocabularyApp() {
     const handleUndoReview = () => {
         if (reviewHistory.length === 0) return;
         const lastEntry = reviewHistory[reviewHistory.length - 1];
+        setReviewTab(lastEntry.queueTab);
         updateRecord(lastEntry.record);
         setReviewQueue(lastEntry.queue);
         setReviewHistory(prev => prev.slice(0, -1));
@@ -638,7 +668,7 @@ export default function SmartVocabularyApp() {
     const handleMaster = (id) => {
         const r = records.find(r => r.id === id);
         updateRecord({
-            ...clearSameDayReviewFields(r),
+            ...clearFocusReviewFields(clearSameDayReviewFields(r)),
             mastered: true,
             masteredDate: getTodayDateString()
         });
@@ -649,7 +679,7 @@ export default function SmartVocabularyApp() {
     const handleResurrect = (id) => {
         const r = records.find(r => r.id === id);
         updateRecord({
-            ...clearSameDayReviewFields(r),
+            ...clearFocusReviewFields(clearSameDayReviewFields(r)),
             mastered: false,
             masteredDate: null,
             reviewStage: 0,
@@ -937,7 +967,7 @@ export default function SmartVocabularyApp() {
                 onUpdateSetting={updateSetting}
                 provider={provider}
                 recordsCount={records.length}
-                reviewQueueLength={reviewQueue.length}
+                reviewQueueLength={mainDueRecords.length + focusDueRecords.length}
                 saveStatus={saveStatus}
                 showSettings={showSettings}
                 view={view}
@@ -982,10 +1012,13 @@ export default function SmartVocabularyApp() {
                     <ReviewView
                         currentQuestionType={currentQuestionType}
                         currentReviewItem={currentReviewItem}
+                        focusBoardRecords={focusBoardRecords}
+                        focusQueueCount={focusDueRecords.length}
                         handleMaster={handleMaster}
                         handleReviewResult={handleReviewResult}
                         handleUndoReview={handleUndoReview}
                         isFlipped={isFlipped}
+                        mainQueueCount={mainDueRecords.length}
                         onResurrect={handleResurrect}
                         playTTS={playTTS}
                         records={records}

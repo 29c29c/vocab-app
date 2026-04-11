@@ -104,6 +104,11 @@ async function initializeDatabase() {
             same_day_review_date TEXT,
             same_day_review_target INTEGER DEFAULT 0,
             same_day_review_done INTEGER DEFAULT 0,
+            forget_count INTEGER DEFAULT 0,
+            hard_count INTEGER DEFAULT 0,
+            is_focus_review INTEGER DEFAULT 0,
+            focus_recovery_streak INTEGER DEFAULT 0,
+            focus_last_review_date TEXT,
             mastered INTEGER DEFAULT 0,
             mastered_date TEXT,
             needs_reading_practice INTEGER DEFAULT 0,
@@ -128,6 +133,11 @@ async function initializeDatabase() {
     await ensureColumn('records', 'same_day_review_date', 'TEXT');
     await ensureColumn('records', 'same_day_review_target', 'INTEGER DEFAULT 0');
     await ensureColumn('records', 'same_day_review_done', 'INTEGER DEFAULT 0');
+    await ensureColumn('records', 'forget_count', 'INTEGER DEFAULT 0');
+    await ensureColumn('records', 'hard_count', 'INTEGER DEFAULT 0');
+    await ensureColumn('records', 'is_focus_review', 'INTEGER DEFAULT 0');
+    await ensureColumn('records', 'focus_recovery_streak', 'INTEGER DEFAULT 0');
+    await ensureColumn('records', 'focus_last_review_date', 'TEXT');
     await ensureColumn('invite_codes', 'used_count', 'INTEGER DEFAULT 0');
     await ensureColumn('invite_codes', 'is_active', 'INTEGER DEFAULT 1');
     await ensureColumn('invite_codes', 'created_by_user_id', 'INTEGER');

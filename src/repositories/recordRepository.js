@@ -27,10 +27,15 @@ export async function insertRecord(record) {
             same_day_review_date,
             same_day_review_target,
             same_day_review_done,
+            forget_count,
+            hard_count,
+            is_focus_review,
+            focus_recovery_streak,
+            focus_last_review_date,
             mastered,
             mastered_date,
             needs_reading_practice
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             record.userId,
             record.date,
@@ -45,6 +50,11 @@ export async function insertRecord(record) {
             record.sameDayReviewDate,
             record.sameDayReviewTarget,
             record.sameDayReviewDone,
+            record.forgetCount,
+            record.hardCount,
+            record.isFocusReview,
+            record.focusRecoveryStreak,
+            record.focusLastReviewDate,
             record.mastered,
             record.masteredDate,
             record.needsReadingPractice
@@ -60,6 +70,11 @@ export async function updateRecordById({ id, userId, record }) {
             same_day_review_date = ?,
             same_day_review_target = ?,
             same_day_review_done = ?,
+            forget_count = ?,
+            hard_count = ?,
+            is_focus_review = ?,
+            focus_recovery_streak = ?,
+            focus_last_review_date = ?,
             mastered = ?,
             mastered_date = ?,
             custom_meaning = ?,
@@ -73,6 +88,11 @@ export async function updateRecordById({ id, userId, record }) {
             record.sameDayReviewDate,
             record.sameDayReviewTarget,
             record.sameDayReviewDone,
+            record.forgetCount,
+            record.hardCount,
+            record.isFocusReview,
+            record.focusRecoveryStreak,
+            record.focusLastReviewDate,
             record.mastered,
             record.masteredDate,
             record.customMeaning,
@@ -108,10 +128,15 @@ export async function replaceUserRecords(userId, records) {
                 same_day_review_date,
                 same_day_review_target,
                 same_day_review_done,
+                forget_count,
+                hard_count,
+                is_focus_review,
+                focus_recovery_streak,
+                focus_last_review_date,
                 mastered,
                 mastered_date,
                 needs_reading_practice
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         );
 
         try {
@@ -130,6 +155,11 @@ export async function replaceUserRecords(userId, records) {
                     record.sameDayReviewDate,
                     record.sameDayReviewTarget,
                     record.sameDayReviewDone,
+                    record.forgetCount,
+                    record.hardCount,
+                    record.isFocusReview,
+                    record.focusRecoveryStreak,
+                    record.focusLastReviewDate,
                     record.mastered,
                     record.masteredDate,
                     record.needsReadingPractice

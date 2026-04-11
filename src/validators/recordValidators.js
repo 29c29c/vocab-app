@@ -32,6 +32,11 @@ export function validateUpdateRecordPayload(body) {
     const input = pickAllowedKeys(body, [
         'aiAnalysis',
         'customMeaning',
+        'focusLastReviewDate',
+        'focusRecoveryStreak',
+        'forgetCount',
+        'hardCount',
+        'isFocusReview',
         'mastered',
         'masteredDate',
         'needsReadingPractice',
@@ -46,6 +51,11 @@ export function validateUpdateRecordPayload(body) {
     return {
         aiAnalysis: readOptionalString(input.aiAnalysis, 'AI 分析'),
         customMeaning: readOptionalString(input.customMeaning, '自定义释义'),
+        focusLastReviewDate: readNullableString(input.focusLastReviewDate, '重点巩固上次首评日期', { maxLength: 64 }),
+        focusRecoveryStreak: readInteger(input.focusRecoveryStreak, '重点巩固恢复连胜', { max: 100000, min: 0 }),
+        forgetCount: readInteger(input.forgetCount, '忘记次数', { max: 100000, min: 0 }),
+        hardCount: readInteger(input.hardCount, '模糊次数', { max: 100000, min: 0 }),
+        isFocusReview: readBooleanLike(input.isFocusReview, '重点巩固状态'),
         mastered: readBooleanLike(input.mastered, '掌握状态'),
         masteredDate: readNullableString(input.masteredDate, '掌握日期', { maxLength: 64 }),
         needsReadingPractice: readBooleanLike(input.needsReadingPractice, '朗读练习标记'),
