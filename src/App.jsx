@@ -57,6 +57,12 @@ const createLookupPanelEntry = (isAiEnabled) => ({
     dictionaryStatus: 'loading'
 });
 
+const DICTATION_SCOPE_OPTIONS = [
+    { key: 'new', label: '新词', note: '按录入日期', title: '新添加', emptyMessage: '没有新添加的单词' },
+    { key: 'review', label: '常规', note: '按复习日期', title: '普通复习', emptyMessage: '没有普通复习单词' },
+    { key: 'focus', label: '重点', note: '按复习日期', title: '重点巩固', emptyMessage: '没有重点巩固单词' }
+];
+
 const getRecordSortTimestamp = record => {
     const rawValue = record?.createdAt || record?.date || '';
     const timestamp = new Date(rawValue).getTime();
@@ -85,6 +91,7 @@ export default function SmartVocabularyApp() {
     // 模态框
     const [showDictationModal, setShowDictationModal] = useState(false);
     const [dictationDate, setDictationDate] = useState(() => getTodayDateString());
+    const [dictationScope, setDictationScope] = useState('new');
     const [modalRecord, setModalRecord] = useState(null);
 
     // 输入框
@@ -1027,8 +1034,20 @@ export default function SmartVocabularyApp() {
     const extractMeaning = (text) => { if (!text) return ''; const match = text.match(/(?:\*\*)?(?:确切含义|含义|Meaning)(?:\*\*)?[:：]\s*([^\n]+)/i); if (match) return match[1].trim(); return text.slice(0, 30).replace(/\*\*/g, '') + '...'; };
 
     const generateDictationSheet = () => {
-        const targetRecords = records.filter(r => r.date === dictationDate);
-        if (targetRecords.length === 0) return alert(`${dictationDate} 没有录入单词`);
+        const selectedScope = DICTATION_SCOPE_OPTIONS.find(option => option.key === dictationScope) || DICTATION_SCOPE_OPTIONS[0];
+        const targetRecords = records.filter(record => {
+            if (dictationScope === 'focus') {
+                return !record.mastered && record.isFocusReview && record.nextReviewDate === dictationDate;
+            }
+
+            if (dictationScope === 'review') {
+                return !record.mastered && !record.isFocusReview && record.nextReviewDate === dictationDate;
+            }
+
+            return record.date === dictationDate;
+        });
+
+        if (targetRecords.length === 0) return alert(`${dictationDate} ${selectedScope.emptyMessage}`);
         let questions = [];
         targetRecords.forEach(r => {
             const answer = r.customMeaning || extractMeaning(r.aiAnalysis) || "暂无释义";
@@ -1046,7 +1065,7 @@ export default function SmartVocabularyApp() {
       <html>
         <head>
           <meta charset="utf-8">
-          <title>听写测试 - ${dictationDate}</title>
+          <title>听写测试 - ${selectedScope.title} - ${dictationDate}</title>
           <style>
             body { font-family: 'Segoe UI', sans-serif; padding: 40px; max-width: 210mm; margin: 0 auto; color: #333; }
             h1 { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; }
@@ -1083,7 +1102,7 @@ export default function SmartVocabularyApp() {
           </div>
           <div class="list-main">
               <h1>听写测试 <span style="font-size:0.6em; font-weight:normal; color:#666">(试卷)</span></h1>
-              <div class="meta">日期: ${dictationDate} | 题数: ${questions.length}</div>
+              <div class="meta">类型: ${selectedScope.title} | 日期: ${dictationDate} | 题数: ${questions.length}</div>
               ${questions.map((q, i) => `
                 <div class="question-row">
                   <span class="q-num">${i + 1}.</span>
@@ -1095,7 +1114,7 @@ export default function SmartVocabularyApp() {
           </div>
           <div class="list-key">
               <h1>听写测试 <span style="font-size:0.6em; font-weight:normal; color:#666">(答案卷)</span></h1>
-              <div class="meta">核对区</div>
+              <div class="meta">核对区 | ${selectedScope.title}</div>
               ${questions.map((q, i) => `
                 <div class="question-row">
                   <span class="q-num">${i + 1}.</span>
@@ -1289,6 +1308,21 @@ export default function SmartVocabularyApp() {
                         <h3 className="text-xl font-bold text-slate-800 mb-4">生成听写测试</h3>
                         <p className="text-sm text-slate-500 mb-4">请选择日期：</p>
                         <input type="date" value={dictationDate} onChange={e => setDictationDate(e.target.value)} className="w-full p-3 bg-slate-50 border rounded-xl mb-6 outline-none focus:ring-2 ring-indigo-500 text-base" />
+                        <div className="grid grid-cols-3 gap-2 mb-6">
+                            {DICTATION_SCOPE_OPTIONS.map(option => {
+                                const active = dictationScope === option.key;
+                                return (
+                                    <button
+                                        key={option.key}
+                                        onClick={() => setDictationScope(option.key)}
+                                        className={`rounded-xl border px-3 py-3 text-left transition ${active ? 'border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm' : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
+                                    >
+                                        <div className="text-sm font-bold">{option.label}</div>
+                                        <div className="text-[11px] mt-1 opacity-80">{option.note}</div>
+                                    </button>
+                                );
+                            })}
+                        </div>
                         <div className="flex gap-3">
                             <button onClick={() => setShowDictationModal(false)} className="flex-1 py-2 rounded-lg bg-slate-100 text-slate-600 font-medium">取消</button>
                             <button onClick={() => { generateDictationSheet(); setShowDictationModal(false); }} className="flex-1 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700">生成试卷</button>
