@@ -68,6 +68,12 @@ function detectDictionaryLanguage({ word, sentence, languageHint }) {
         return 'ja';
     }
 
+    // The app currently targets English and Japanese only.
+    // Kanji-only Japanese words should still hit the Japanese dictionary.
+    if (/[\u4e00-\u9fff]/.test(sample) && !/[A-Za-z]/.test(sample)) {
+        return 'ja';
+    }
+
     return 'en';
 }
 
@@ -172,7 +178,9 @@ async function lookupLocalEnglishDictionary(word) {
         database,
         `SELECT surface, reading, gloss, pos, priority, phonetic, example
          FROM entries
-         WHERE LOWER(surface) = ? OR LOWER(reading) = ?
+         WHERE (LOWER(surface) = ? OR LOWER(reading) = ?)
+           AND surface NOT LIKE '##%'
+           AND surface != '@'
          ORDER BY CASE WHEN LOWER(surface) = ? THEN 0 ELSE 1 END ASC,
                   COALESCE(priority, 999999) ASC,
                   rowid ASC
@@ -182,7 +190,34 @@ async function lookupLocalEnglishDictionary(word) {
         throw new AppError(500, `英语词典查询失败: ${error.message}`);
     });
 
-    const result = normalizeEnglishDictionaryResult(rows);
+    let result = normalizeEnglishDictionaryResult(rows);
+
+    if (result.definitions.length === 0 && /^[A-Za-z][A-Za-z' -]*$/.test(word.trim())) {
+        const fallbackRows = await queryAll(
+            database,
+            `SELECT surface, reading, gloss, pos, priority, phonetic, example
+             FROM entries
+             WHERE LOWER(gloss) LIKE ?
+               AND surface NOT LIKE '##%'
+               AND surface != '@'
+             ORDER BY COALESCE(priority, 999999) ASC,
+                      rowid ASC
+             LIMIT 20`,
+            [`%${normalizedWord}%`]
+        ).catch(error => {
+            throw new AppError(500, `英语词典反查失败: ${error.message}`);
+        });
+
+        const reverseDefinitions = uniqueNonEmpty(fallbackRows.map(row => row?.surface), 3);
+        result = {
+            ...result,
+            definitions: reverseDefinitions,
+            examples: uniqueNonEmpty(fallbackRows.map(row => row?.gloss), 2),
+            partsOfSpeech: uniqueNonEmpty(fallbackRows.map(row => row?.pos), 3),
+            source: reverseDefinitions.length > 0 ? 'local-en-sqlite-reverse' : result.source
+        };
+    }
+
     writeResultCache(cacheKey, result);
     return result;
 }
@@ -209,7 +244,9 @@ async function lookupLocalJapaneseDictionary(word) {
         database,
         `SELECT surface, reading, gloss, pos, priority, phonetic, example
          FROM entries
-         WHERE surface = ? OR reading = ?
+         WHERE (surface = ? OR reading = ?)
+           AND surface NOT LIKE '##%'
+           AND surface != '@'
          ORDER BY CASE WHEN surface = ? THEN 0 ELSE 1 END ASC,
                   COALESCE(priority, 999999) ASC,
                   rowid ASC
