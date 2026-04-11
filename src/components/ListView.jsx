@@ -1,12 +1,14 @@
-import { BookOpen, Filter, Sparkles, Trash2, Trophy, Zap } from 'lucide-react';
+import { BookOpen, Filter, Search, Sparkles, Trash2, Trophy, Zap } from 'lucide-react';
 
 export default function ListView({
     filteredRecords,
     listFilterDate,
+    listSearchQuery,
     listFilterStage,
     onDelete,
     onOpenModal,
     onSetListFilterDate,
+    onSetListSearchQuery,
     onSetListFilterStage,
     onToggleReadingPractice
 }) {
@@ -18,7 +20,17 @@ export default function ListView({
                         <Filter className="w-4 h-4" />
                         <span className="text-sm font-bold">筛选</span>
                     </div>
-                    <div className="flex gap-2 flex-wrap">
+                    <div className="flex gap-2 flex-wrap w-full md:w-auto md:justify-end">
+                        <div className="relative min-w-[220px] flex-1 md:flex-none">
+                            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                            <input
+                                type="text"
+                                value={listSearchQuery}
+                                onChange={event => onSetListSearchQuery(event.target.value)}
+                                placeholder="搜索单词、释义、例句..."
+                                className="w-full text-sm border border-slate-300 rounded px-3 py-1.5 pl-9 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            />
+                        </div>
                         <select
                             value={listFilterStage}
                             onChange={event => onSetListFilterStage(event.target.value)}
@@ -90,6 +102,13 @@ export default function ListView({
                                 </td>
                             </tr>
                         ))}
+                        {filteredRecords.length === 0 && (
+                            <tr>
+                                <td colSpan="5" className="p-8 text-center text-slate-400">
+                                    没有匹配的单词
+                                </td>
+                            </tr>
+                        )}
                     </tbody>
                 </table>
             </div>

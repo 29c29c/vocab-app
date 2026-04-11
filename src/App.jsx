@@ -76,6 +76,7 @@ export default function SmartVocabularyApp() {
     const [filterLang, setFilterLang] = useState('all');
     const [listFilterStage, setListFilterStage] = useState('all');
     const [listFilterDate, setListFilterDate] = useState('all');
+    const [listSearchQuery, setListSearchQuery] = useState('');
 
     const [isDataLoaded, setIsDataLoaded] = useState(false);
     const [saveStatus, setSaveStatus] = useState('saved');
@@ -952,6 +953,26 @@ export default function SmartVocabularyApp() {
         return res;
     }, [records, filterLang, listFilterStage, listFilterDate]);
 
+    const listViewRecords = useMemo(() => {
+        const keyword = listSearchQuery.trim().toLowerCase();
+        if (!keyword) {
+            return filteredRecords;
+        }
+
+        return filteredRecords.filter(record => {
+            const fields = [
+                record.word,
+                record.reading,
+                record.customMeaning,
+                record.dictionaryMeaning,
+                record.sentence,
+                record.aiAnalysis
+            ];
+
+            return fields.some(field => String(field || '').toLowerCase().includes(keyword));
+        });
+    }, [filteredRecords, listSearchQuery]);
+
     const frequencyData = useMemo(() => {
         const map = {};
         filteredRecords.forEach(record => {
@@ -1207,12 +1228,14 @@ export default function SmartVocabularyApp() {
 
                 {view === 'list' && (
                     <ListView
-                        filteredRecords={filteredRecords}
+                        filteredRecords={listViewRecords}
                         listFilterDate={listFilterDate}
+                        listSearchQuery={listSearchQuery}
                         listFilterStage={listFilterStage}
                         onDelete={handleDelete}
                         onOpenModal={setModalRecord}
                         onSetListFilterDate={setListFilterDate}
+                        onSetListSearchQuery={setListSearchQuery}
                         onSetListFilterStage={setListFilterStage}
                         onToggleReadingPractice={toggleReadingPractice}
                     />
@@ -1232,6 +1255,7 @@ export default function SmartVocabularyApp() {
                     <DateArchiveView
                         dateGroupedData={dateGroupedData}
                         filterLang={filterLang}
+                        onDelete={handleDelete}
                         onExportDateArchiveExcel={exportDateArchiveExcel}
                         onOpenModal={setModalRecord}
                         onSetFilterLang={setFilterLang}

@@ -1,10 +1,11 @@
-import { FileSpreadsheet, Printer } from 'lucide-react';
+import { FileSpreadsheet, Printer, Trash2 } from 'lucide-react';
 
 import LanguageTabs from './LanguageTabs.jsx';
 
 export default function DateArchiveView({
     dateGroupedData,
     filterLang,
+    onDelete,
     onExportDateArchiveExcel,
     onOpenModal,
     onSetFilterLang,
@@ -36,9 +37,20 @@ export default function DateArchiveView({
                         <div className="divide-y">
                             {group.items.map(item => (
                                 <div key={item.id} className="p-5 hover:bg-slate-50">
-                                    <div className="flex justify-between">
-                                        <span className="font-bold text-indigo-700">{item.word}</span>
-                                        <span className="text-xs text-slate-400">#{item.id}</span>
+                                    <div className="flex justify-between items-start gap-3">
+                                        <div className="min-w-0">
+                                            <span className="font-bold text-indigo-700 break-all">{item.word}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 flex-shrink-0">
+                                            <span className="text-xs text-slate-400">#{item.id}</span>
+                                            <button
+                                                onClick={() => onDelete(item.id)}
+                                                className="text-red-400 hover:text-red-600"
+                                                title="删除单词"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
                                     </div>
                                     <p className="text-sm text-slate-600 mt-1">{item.sentence}</p>
                                     {(item.customMeaning || item.aiAnalysis) && (
