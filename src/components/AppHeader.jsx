@@ -44,6 +44,9 @@ export default function AppHeader({
     onUpdateApiKeyDraft,
     provider,
     recordsCount,
+    reviewShortcutEasy,
+    reviewShortcutForget,
+    reviewShortcutHard,
     reviewQueueLength,
     saveStatus,
     showSettings,
@@ -174,6 +177,9 @@ export default function AppHeader({
                     onUpdateApiKeyDraft={onUpdateApiKeyDraft}
                     onUpdateSetting={onUpdateSetting}
                     provider={provider}
+                    reviewShortcutEasy={reviewShortcutEasy}
+                    reviewShortcutForget={reviewShortcutForget}
+                    reviewShortcutHard={reviewShortcutHard}
                     showReviewSentence={showReviewSentence}
                 />
             )}

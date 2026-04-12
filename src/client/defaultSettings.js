@@ -6,11 +6,27 @@ import {
 
 const defaultPreset = getAiProviderPreset(DEFAULT_AI_PROVIDER);
 
+function normalizeShortcutKey(value, fallback = '') {
+    if (typeof value !== 'string') {
+        return fallback;
+    }
+
+    const trimmed = value.trim().toUpperCase();
+    if (!trimmed) {
+        return '';
+    }
+
+    return trimmed.slice(0, 1);
+}
+
 export const DEFAULT_APP_SETTINGS = {
     apiKey: '',
     dsBaseUrl: defaultPreset.baseUrl || '',
     dsModel: defaultPreset.model || '',
     provider: DEFAULT_AI_PROVIDER,
+    reviewShortcutEasy: 'D',
+    reviewShortcutForget: 'A',
+    reviewShortcutHard: 'S',
     showReviewSentence: true
 };
 
@@ -28,6 +44,9 @@ export function normalizeAppSettings(input) {
             ? source.dsModel.trim()
             : (preset.model ?? DEFAULT_APP_SETTINGS.dsModel),
         provider,
+        reviewShortcutEasy: normalizeShortcutKey(source.reviewShortcutEasy, DEFAULT_APP_SETTINGS.reviewShortcutEasy),
+        reviewShortcutForget: normalizeShortcutKey(source.reviewShortcutForget, DEFAULT_APP_SETTINGS.reviewShortcutForget),
+        reviewShortcutHard: normalizeShortcutKey(source.reviewShortcutHard, DEFAULT_APP_SETTINGS.reviewShortcutHard),
         showReviewSentence: typeof source.showReviewSentence === 'boolean'
             ? source.showReviewSentence
             : DEFAULT_APP_SETTINGS.showReviewSentence

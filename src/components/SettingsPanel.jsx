@@ -2,6 +2,12 @@ import { KeyRound, Plus, RefreshCw, Save, ShieldCheck, Trash2 } from 'lucide-rea
 
 import { AI_PROVIDER_OPTIONS } from '../shared/aiProviders.js';
 
+const REVIEW_SHORTCUT_FIELDS = [
+    { key: 'reviewShortcutForget', label: '忘记', hint: '评分' },
+    { key: 'reviewShortcutHard', label: '模糊', hint: '评分' },
+    { key: 'reviewShortcutEasy', label: '记得', hint: '评分' }
+];
+
 export default function SettingsPanel({
     adminStatusChecked,
     apiKeyDraft,
@@ -24,6 +30,9 @@ export default function SettingsPanel({
     onUpdateApiKeyDraft,
     onUpdateSetting,
     provider,
+    reviewShortcutEasy,
+    reviewShortcutForget,
+    reviewShortcutHard,
     showReviewSentence
 }) {
     const apiKeyStatusClassName = apiKeySaveStatus === 'error'
@@ -31,6 +40,28 @@ export default function SettingsPanel({
         : apiKeySaveStatus === 'saved'
             ? 'text-emerald-200 bg-emerald-500/10 border border-emerald-300/20'
             : 'text-indigo-100/80 bg-white/5 border border-white/10';
+    const shortcutValues = {
+        reviewShortcutEasy,
+        reviewShortcutForget,
+        reviewShortcutHard
+    };
+
+    const renderShortcutField = field => (
+        <label key={field.key} className="block">
+            <div className="text-xs text-indigo-200 mb-1">
+                {field.label}
+                <span className="opacity-70 ml-1">({field.hint})</span>
+            </div>
+            <input
+                type="text"
+                value={shortcutValues[field.key] || ''}
+                onChange={event => onUpdateSetting(field.key, event.target.value.toUpperCase().slice(0, 1))}
+                maxLength={1}
+                className="w-full p-2 rounded bg-black/30 border-white/20 text-white text-base uppercase tracking-[0.2em]"
+                placeholder="-"
+            />
+        </label>
+    );
 
     return (
         <div className="max-w-5xl mx-auto mt-4 p-4 bg-black/20 rounded-xl backdrop-blur border border-white/10 animate-in slide-in-from-top-2 space-y-5">
@@ -59,7 +90,7 @@ export default function SettingsPanel({
                             </button>
                         </div>
                         <div className={`mt-2 text-xs rounded-lg px-3 py-2 ${apiKeyStatusClassName}`}>
-                            {apiKeySaveMessage || 'API Key 仅保存到服务端，不写入当前浏览器本地缓存。'}
+                            {apiKeySaveMessage}
                         </div>
                     </div>
                     <div>
@@ -75,9 +106,6 @@ export default function SettingsPanel({
                                 </option>
                             ))}
                         </select>
-                        <div className="mt-2 text-xs text-indigo-100/80 bg-white/5 border border-white/10 rounded-lg px-3 py-2">
-                            当前预设会自动切换对应的官方接口与默认模型。
-                        </div>
                     </div>
                 </div>
                 <div className="mt-4 rounded-xl border border-white/10 bg-white/5 px-4 py-3 flex items-center justify-between gap-4">
@@ -98,6 +126,17 @@ export default function SettingsPanel({
                             className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${showReviewSentence ? 'translate-x-8' : 'translate-x-1'}`}
                         />
                     </button>
+                </div>
+                <div className="mt-4 rounded-xl border border-white/10 bg-white/5 px-4 py-4">
+                    <div className="text-sm font-bold text-white">复习快捷键</div>
+                    <div className="text-xs text-indigo-100/80 mt-1">
+                        仅用于电脑网页端复习评分。
+                    </div>
+                    <div className="mt-4">
+                        <div className="grid grid-cols-3 gap-3">
+                            {REVIEW_SHORTCUT_FIELDS.map(renderShortcutField)}
+                        </div>
+                    </div>
                 </div>
             </div>
 

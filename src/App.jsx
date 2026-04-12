@@ -57,6 +57,31 @@ const createLookupPanelEntry = (isAiEnabled) => ({
     dictionaryStatus: 'loading'
 });
 
+function isEditableTarget(target) {
+    if (!(target instanceof HTMLElement)) return false;
+
+    return (
+        target.isContentEditable ||
+        ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
+    );
+}
+
+function getShortcutCandidates(event) {
+    const candidates = new Set();
+    const rawKey = String(event.key || '').trim().toUpperCase();
+    if (rawKey) {
+        candidates.add(rawKey);
+    }
+
+    const rawCode = String(event.code || '').trim();
+    const codeMatch = rawCode.match(/^Key([A-Z])$/i);
+    if (codeMatch) {
+        candidates.add(codeMatch[1].toUpperCase());
+    }
+
+    return candidates;
+}
+
 const DICTATION_SCOPE_OPTIONS = [
     { key: 'new', label: '新词', note: '按录入日期', title: '新添加', emptyMessage: '没有新添加的单词' },
     { key: 'review', label: '常规', note: '按复习日期', title: '普通复习', emptyMessage: '没有普通复习单词' },
@@ -125,13 +150,25 @@ export default function SmartVocabularyApp() {
     const [inviteCodeMutatingId, setInviteCodeMutatingId] = useState(null);
     const [isCreatingInviteCode, setIsCreatingInviteCode] = useState(false);
     const recordsRef = useRef([]);
+    const reviewResultHandlerRef = useRef(null);
     const { provider } = settings;
     const publicSettings = useMemo(() => ({
         provider: settings.provider,
         dsBaseUrl: settings.dsBaseUrl,
         dsModel: settings.dsModel,
+        reviewShortcutEasy: settings.reviewShortcutEasy,
+        reviewShortcutForget: settings.reviewShortcutForget,
+        reviewShortcutHard: settings.reviewShortcutHard,
         showReviewSentence: settings.showReviewSentence
-    }), [settings.dsBaseUrl, settings.dsModel, settings.provider, settings.showReviewSentence]);
+    }), [
+        settings.dsBaseUrl,
+        settings.dsModel,
+        settings.provider,
+        settings.reviewShortcutEasy,
+        settings.reviewShortcutForget,
+        settings.reviewShortcutHard,
+        settings.showReviewSentence
+    ]);
 
     // --- Auth Handlers ---
     const handleLogin = useCallback((newToken, username) => {
@@ -756,6 +793,7 @@ export default function SmartVocabularyApp() {
         setReviewHistory(prev => prev.slice(0, -1));
         setIsFlipped(false);
     };
+    reviewResultHandlerRef.current = handleReviewResult;
 
     const handleMaster = (id) => {
         const r = records.find(r => r.id === id);
@@ -903,6 +941,57 @@ export default function SmartVocabularyApp() {
         for (const r of pending) { await callAIAnalysis(r, { silent: true }); await new Promise(res => setTimeout(res, 800)); }
         setIsBatchAnalyzing(false); alert("批量解析完成");
     };
+
+    useEffect(() => {
+        if (view !== 'review') return undefined;
+
+        const onKeyDown = event => {
+            const shortcutMap = {
+                [settings.reviewShortcutForget]: () => {
+                    if (reviewTab !== 'mastered' && currentReviewItem && isFlipped) {
+                        reviewResultHandlerRef.current?.('forget');
+                    }
+                },
+                [settings.reviewShortcutHard]: () => {
+                    if (reviewTab !== 'mastered' && currentReviewItem && isFlipped) {
+                        reviewResultHandlerRef.current?.('hard');
+                    }
+                },
+                [settings.reviewShortcutEasy]: () => {
+                    if (reviewTab !== 'mastered' && currentReviewItem && isFlipped) {
+                        reviewResultHandlerRef.current?.('easy');
+                    }
+                }
+            };
+
+            const pressedKeys = getShortcutCandidates(event);
+            const matchedAction = Array.from(pressedKeys)
+                .map(key => shortcutMap[key])
+                .find(Boolean);
+
+            if (!matchedAction) return;
+            if (event.repeat) return;
+            if (showSettings || showDictationModal || modalRecord) return;
+            if (isEditableTarget(event.target)) return;
+
+            event.preventDefault();
+            matchedAction();
+        };
+
+        window.addEventListener('keydown', onKeyDown, true);
+        return () => window.removeEventListener('keydown', onKeyDown, true);
+    }, [
+        currentReviewItem,
+        isFlipped,
+        modalRecord,
+        reviewTab,
+        settings.reviewShortcutEasy,
+        settings.reviewShortcutForget,
+        settings.reviewShortcutHard,
+        showDictationModal,
+        showSettings,
+        view
+    ]);
 
     const playTTS = (text) => { if ('speechSynthesis' in window) { const u = new SpeechSynthesisUtterance(text); if (text.match(/[\u3040-\u309F\u30A0-\u30FF]/)) u.lang = 'ja-JP'; window.speechSynthesis.speak(u); } };
 
@@ -1178,6 +1267,9 @@ export default function SmartVocabularyApp() {
                 onUpdateSetting={updateSetting}
                 provider={provider}
                 recordsCount={records.length}
+                reviewShortcutEasy={settings.reviewShortcutEasy}
+                reviewShortcutForget={settings.reviewShortcutForget}
+                reviewShortcutHard={settings.reviewShortcutHard}
                 reviewQueueLength={mainDueRecords.length + focusDueRecords.length}
                 saveStatus={saveStatus}
                 showSettings={showSettings}
