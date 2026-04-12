@@ -23,7 +23,8 @@ export default function SettingsPanel({
     onUpdateInviteCodeDraft,
     onUpdateApiKeyDraft,
     onUpdateSetting,
-    provider
+    provider,
+    showReviewSentence
 }) {
     const apiKeyStatusClassName = apiKeySaveStatus === 'error'
         ? 'text-red-200 bg-red-500/10 border border-red-300/20'
@@ -78,6 +79,25 @@ export default function SettingsPanel({
                             当前预设会自动切换对应的官方接口与默认模型。
                         </div>
                     </div>
+                </div>
+                <div className="mt-4 rounded-xl border border-white/10 bg-white/5 px-4 py-3 flex items-center justify-between gap-4">
+                    <div>
+                        <div className="text-sm font-bold text-white">复习显示例句</div>
+                        <div className="text-xs text-indigo-100/80 mt-1">
+                            普通复习和重点巩固共用这个设置。
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => onUpdateSetting('showReviewSentence', !showReviewSentence)}
+                        className={`relative inline-flex h-7 w-14 items-center rounded-full transition ${showReviewSentence ? 'bg-emerald-500' : 'bg-slate-600'}`}
+                        aria-pressed={showReviewSentence}
+                        title={showReviewSentence ? '已开启' : '已关闭'}
+                    >
+                        <span
+                            className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${showReviewSentence ? 'translate-x-8' : 'translate-x-1'}`}
+                        />
+                    </button>
                 </div>
             </div>
 

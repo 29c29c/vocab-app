@@ -10,7 +10,8 @@ export const DEFAULT_APP_SETTINGS = {
     apiKey: '',
     dsBaseUrl: defaultPreset.baseUrl || '',
     dsModel: defaultPreset.model || '',
-    provider: DEFAULT_AI_PROVIDER
+    provider: DEFAULT_AI_PROVIDER,
+    showReviewSentence: true
 };
 
 export function normalizeAppSettings(input) {
@@ -26,7 +27,10 @@ export function normalizeAppSettings(input) {
         dsModel: typeof source.dsModel === 'string' && source.dsModel.trim()
             ? source.dsModel.trim()
             : (preset.model ?? DEFAULT_APP_SETTINGS.dsModel),
-        provider
+        provider,
+        showReviewSentence: typeof source.showReviewSentence === 'boolean'
+            ? source.showReviewSentence
+            : DEFAULT_APP_SETTINGS.showReviewSentence
     };
 }
 

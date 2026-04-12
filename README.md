@@ -10,6 +10,7 @@
 - 录入后优先显示本地词典结果，再异步补充 AI 解析
 - 自动记录最近 5 次手动录入结果，便于快速回看
 - 词典读音和最简释义会写回数据库，刷新后仍可保留
+- 支持英语 / 日语本地词典结果优先展示，不依赖浏览器直连外部词典
 
 ### 2. 复习系统
 
@@ -19,6 +20,8 @@
   - `模糊` 不升级周期，并要求当天重复达标
 - 更随机的错题重现逻辑，避免固定 3-4 个后立刻再次出现
 - `撤销上一步` 支持恢复复习进度和队列状态
+- 可在设置页控制“翻转前是否显示例句”
+- 翻转后的答案面始终显示例句，方便继续对照
 
 ### 3. 重点巩固
 
@@ -49,7 +52,12 @@
 
 - 词频统计
 - 日期归档
+- 列表页关键词搜索，可按单词、读音、释义、例句、AI 解析查询
 - 听写纸生成与打印
+- 听写纸支持三种题源：
+  - 新词：按录入日期
+  - 常规：按普通复习日期
+  - 重点：按重点巩固日期
 - Excel 导出
 
 ### 8. 账号与后台能力
@@ -190,6 +198,11 @@ npm run start
   - [server/dictionaries/convert_mdx_to_sqlite.py](./server/dictionaries/convert_mdx_to_sqlite.py)
   - [server/dictionaries/convert_mdx_to_sqlite_gui.py](./server/dictionaries/convert_mdx_to_sqlite_gui.py)
   - [server/dictionaries/launch_converter_gui.bat](./server/dictionaries/launch_converter_gui.bat)
+  - [server/dictionaries/launch_converter_gui.command](./server/dictionaries/launch_converter_gui.command)
+- 推荐流程：
+  1. 准备 `.mdx` 源词典
+  2. 用离线脚本或 GUI 转成 `main.sqlite`
+  3. 网站运行时直接读取 SQLite，不在服务端动态解析 `.mdx`
 
 ## 开发约定
 

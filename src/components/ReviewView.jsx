@@ -83,6 +83,7 @@ export default function ReviewView({
     reviewHistory,
     reviewQueue,
     reviewTab,
+    showReviewSentence,
     setIsFlipped,
     setReviewTab,
     updateRecord
@@ -172,6 +173,11 @@ export default function ReviewView({
                                             <p className="text-2xl font-bold text-slate-600">{currentReviewItem.reading || '(无读音数据)'}</p>
                                         </div>
                                     )}
+                                    {showReviewSentence && currentReviewItem.sentence && (
+                                        <div className="w-full mt-6 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                            <p className="text-sm text-slate-600 italic text-left">"{currentReviewItem.sentence}"</p>
+                                        </div>
+                                    )}
                                     <p className="text-slate-400 text-sm mt-8 animate-pulse">点击翻转查看答案</p>
                                 </div>
 
@@ -201,9 +207,11 @@ export default function ReviewView({
                                             <GraduationCap className="w-3 h-3" /> 毕业
                                         </button>
                                     </div>
-                                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 mb-4">
-                                        <p className="text-slate-600 italic">"{currentReviewItem.sentence}"</p>
-                                    </div>
+                                    {currentReviewItem.sentence && (
+                                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 mb-4">
+                                            <p className="text-slate-600 italic">"{currentReviewItem.sentence}"</p>
+                                        </div>
+                                    )}
                                     <div className="flex-1 overflow-y-auto text-sm text-slate-600 space-y-2">
                                         <MeaningSection record={currentReviewItem} onUpdate={updateRecord} />
                                     </div>

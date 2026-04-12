@@ -47,6 +47,7 @@ export default function AppHeader({
     reviewQueueLength,
     saveStatus,
     showSettings,
+    showReviewSentence,
     onToggleSettings,
     onUpdateSetting,
     view
@@ -173,6 +174,7 @@ export default function AppHeader({
                     onUpdateApiKeyDraft={onUpdateApiKeyDraft}
                     onUpdateSetting={onUpdateSetting}
                     provider={provider}
+                    showReviewSentence={showReviewSentence}
                 />
             )}
         </header>

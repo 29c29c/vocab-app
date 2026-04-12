@@ -129,8 +129,9 @@ export default function SmartVocabularyApp() {
     const publicSettings = useMemo(() => ({
         provider: settings.provider,
         dsBaseUrl: settings.dsBaseUrl,
-        dsModel: settings.dsModel
-    }), [settings.dsBaseUrl, settings.dsModel, settings.provider]);
+        dsModel: settings.dsModel,
+        showReviewSentence: settings.showReviewSentence
+    }), [settings.dsBaseUrl, settings.dsModel, settings.provider, settings.showReviewSentence]);
 
     // --- Auth Handlers ---
     const handleLogin = useCallback((newToken, username) => {
@@ -1180,6 +1181,7 @@ export default function SmartVocabularyApp() {
                 reviewQueueLength={mainDueRecords.length + focusDueRecords.length}
                 saveStatus={saveStatus}
                 showSettings={showSettings}
+                showReviewSentence={settings.showReviewSentence}
                 view={view}
             />
 
@@ -1239,6 +1241,7 @@ export default function SmartVocabularyApp() {
                         reviewHistory={reviewHistory}
                         reviewQueue={reviewQueue}
                         reviewTab={reviewTab}
+                        showReviewSentence={settings.showReviewSentence}
                         setIsFlipped={setIsFlipped}
                         setReviewTab={setReviewTab}
                         updateRecord={updateRecord}
