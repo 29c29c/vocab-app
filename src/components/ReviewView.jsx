@@ -88,6 +88,8 @@ export default function ReviewView({
     setReviewTab,
     updateRecord
 }) {
+    const masteredCount = records.filter(record => record.mastered).length;
+
     return (
         <div className="space-y-6">
             <div className="flex justify-center">
@@ -108,7 +110,7 @@ export default function ReviewView({
                         onClick={() => setReviewTab('mastered')}
                         className={`px-6 py-2 rounded-full text-sm font-bold transition ${reviewTab === 'mastered' ? 'bg-white text-amber-600 shadow' : 'text-slate-500'}`}
                     >
-                        荣誉殿堂
+                        荣誉殿堂 ({masteredCount})
                     </button>
                 </div>
             </div>
