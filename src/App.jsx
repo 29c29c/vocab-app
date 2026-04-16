@@ -899,7 +899,7 @@ export default function SmartVocabularyApp() {
             });
         }
 
-        const promptText = `我正在学习单词。单词：${record.word}。${record.sentence ? '句子：' + record.sentence : '请根据单词造句并解析'}。${record.customMeaning ? '用户备注含义：' + record.customMeaning : ''}。请严格按照以下 Markdown 格式解析：1. **语言识别**: (英语/日语) 2. **标音**: (日语提供假名，英语提供音标) 3. **确切含义**: (解释含义) 4. **语法分析**: (简要说明) 5. **固定搭配**: (列出3个) 请保持简洁。`;
+        const promptText = `我正在学习单词。单词：${record.word}。${record.sentence ? '句子：' + record.sentence : '请根据单词造句并解析'}。${record.customMeaning ? '用户备注含义：' + record.customMeaning : ''}。请严格按照以下 Markdown 格式解析，并保持编号顺序不变：1. **常见解释**: (用中文写一个最常见、最口语、10字以内的简短解释) 2. **语言识别**: (英语/日语) 3. **标音**: (日语提供假名，英语提供音标) 4. **确切含义**: (解释更准确的含义) 5. **语法分析**: (简要说明) 6. **固定搭配**: (列出3个) 请保持简洁。`;
         try {
             const aiContent = await requestAiPrompt(promptText);
             const reading = extractReadingFromAnalysis(aiContent);
@@ -1121,7 +1121,7 @@ export default function SmartVocabularyApp() {
         window.XLSX.writeFile(wb, `单词归档_${new Date().toISOString().slice(0, 10)}.xlsx`);
     };
 
-    const extractMeaning = (text) => { if (!text) return ''; const match = text.match(/(?:\*\*)?(?:确切含义|含义|Meaning)(?:\*\*)?[:：]\s*([^\n]+)/i); if (match) return match[1].trim(); return text.slice(0, 30).replace(/\*\*/g, '') + '...'; };
+    const extractMeaning = (text) => { if (!text) return ''; const match = text.match(/(?:\*\*)?(?:常见解释|短释义|确切含义|含义|Meaning)(?:\*\*)?[:：]\s*([^\n]+)/i); if (match) return match[1].trim(); return text.slice(0, 30).replace(/\*\*/g, '') + '...'; };
 
     const generateDictationSheet = () => {
         const selectedScope = DICTATION_SCOPE_OPTIONS.find(option => option.key === dictationScope) || DICTATION_SCOPE_OPTIONS[0];

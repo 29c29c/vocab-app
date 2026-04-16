@@ -43,7 +43,7 @@ function StatusPill({ status, text }) {
 function extractMeaningFromAi(text) {
     if (!text) return '';
 
-    const match = text.match(/(?:\*\*)?(?:确切含义|含义|Meaning)(?:\*\*)?[:：]\s*([^\n]+)/i);
+    const match = text.match(/(?:\*\*)?(?:常见解释|短释义|确切含义|含义|Meaning)(?:\*\*)?[:：]\s*([^\n]+)/i);
     if (match) {
         return match[1].trim();
     }
