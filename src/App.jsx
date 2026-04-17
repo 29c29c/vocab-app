@@ -9,6 +9,8 @@ import { requestDictionaryLookup } from './client/dictionaryApi.js';
 import { DEFAULT_APP_SETTINGS, hasAiConfig, normalizeAppSettings } from './client/defaultSettings.js';
 import {
     applyReviewPerformance,
+    getCalendarDateString,
+    getFutureDateString,
     clearSameDayReviewFields,
     clearFocusReviewFields,
     getTodayDateString,
@@ -120,7 +122,7 @@ export default function SmartVocabularyApp() {
     const [modalRecord, setModalRecord] = useState(null);
 
     // 输入框
-    const [inputDate, setInputDate] = useState(() => getTodayDateString());
+    const [inputDate, setInputDate] = useState(() => getCalendarDateString());
     const [inputWord, setInputWord] = useState('');
     const [inputSentence, setInputSentence] = useState('');
     const [inputMeaning, setInputMeaning] = useState('');
@@ -611,7 +613,7 @@ export default function SmartVocabularyApp() {
     // 4. 批量添加 (Batch Add)
     const handleBatchAddRecords = async (newItems, creationSource = 'batch') => {
         setSaveStatus('saving');
-        const today = getTodayDateString();
+        const today = getCalendarDateString();
         
         // 并发发送请求
         const promises = newItems.map(item => {
@@ -770,9 +772,7 @@ export default function SmartVocabularyApp() {
             return;
         }
         const newStage = record.reviewStage + 1;
-        const nextDate = new Date();
-        nextDate.setDate(nextDate.getDate() + interval);
-        const nextDateStr = nextDate.toISOString().split('T')[0];
+        const nextDateStr = getFutureDateString(interval);
 
         const updatedRecord = maybeExitFocusReview({
             ...clearSameDayReviewFields(performanceRecord),
@@ -1041,8 +1041,7 @@ export default function SmartVocabularyApp() {
             if (listFilterDate === 'overdue') res = res.filter(r => !r.mastered && r.nextReviewDate < today);
             else if (listFilterDate === 'today') res = res.filter(r => !r.mastered && r.nextReviewDate === today);
             else if (listFilterDate === 'tomorrow') {
-                const tmr = new Date(); tmr.setDate(tmr.getDate() + 1);
-                const tmrStr = tmr.toISOString().split('T')[0];
+                const tmrStr = getFutureDateString(1);
                 res = res.filter(r => !r.mastered && r.nextReviewDate === tmrStr);
             }
             else if (listFilterDate === 'future') res = res.filter(r => !r.mastered && r.nextReviewDate > today);

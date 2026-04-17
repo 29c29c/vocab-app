@@ -3,6 +3,8 @@ export const HARD_SAME_DAY_TARGET = 2;
 export const FOCUS_FORGET_THRESHOLD = 3;
 export const FOCUS_HARD_THRESHOLD = 5;
 export const FOCUS_RECOVERY_STREAK_TARGET = 2;
+const BEIJING_UTC_OFFSET_HOURS = 8;
+const REVIEW_RESET_HOUR_BEIJING = 4;
 
 export const EMPTY_SAME_DAY_REVIEW = {
     sameDayReviewDate: null,
@@ -16,14 +18,31 @@ export const EMPTY_FOCUS_REVIEW = {
     isFocusReview: false
 };
 
-export function getTodayDateString() {
-    return new Date().toISOString().split('T')[0];
+function formatUtcDateString(date) {
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(date.getUTCDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 }
 
-export function getFutureDateString(days) {
-    const nextDate = new Date();
-    nextDate.setDate(nextDate.getDate() + days);
-    return nextDate.toISOString().split('T')[0];
+function getBeijingShiftedDate(date = new Date(), shiftHours = 0) {
+    const utcTimestamp = date.getTime() + (date.getTimezoneOffset() * 60 * 1000);
+    const shiftedTimestamp = utcTimestamp + ((BEIJING_UTC_OFFSET_HOURS + shiftHours) * 60 * 60 * 1000);
+    return new Date(shiftedTimestamp);
+}
+
+export function getCalendarDateString(date = new Date()) {
+    return formatUtcDateString(getBeijingShiftedDate(date));
+}
+
+export function getTodayDateString(date = new Date()) {
+    return formatUtcDateString(getBeijingShiftedDate(date, -REVIEW_RESET_HOUR_BEIJING));
+}
+
+export function getFutureDateString(days, date = new Date()) {
+    const shiftedDate = getBeijingShiftedDate(date, -REVIEW_RESET_HOUR_BEIJING);
+    shiftedDate.setUTCDate(shiftedDate.getUTCDate() + days);
+    return formatUtcDateString(shiftedDate);
 }
 
 export function clearSameDayReviewFields(record) {
