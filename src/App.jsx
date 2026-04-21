@@ -11,6 +11,7 @@ import {
     applyReviewPerformance,
     getCalendarDateString,
     getFutureDateString,
+    getMillisecondsUntilNextReviewReset,
     clearSameDayReviewFields,
     clearFocusReviewFields,
     getTodayDateString,
@@ -133,6 +134,7 @@ export default function SmartVocabularyApp() {
     const [reviewQueue, setReviewQueue] = useState([]); 
     const [reviewHistory, setReviewHistory] = useState([]); 
     const [isFlipped, setIsFlipped] = useState(false);
+    const [reviewDate, setReviewDate] = useState(() => getTodayDateString());
 
     // AI & Settings
     const [showSettings, setShowSettings] = useState(false);
@@ -223,6 +225,63 @@ export default function SmartVocabularyApp() {
     useEffect(() => {
         recordsRef.current = records;
     }, [records]);
+
+    useEffect(() => {
+        let resetTimeoutId;
+
+        const refreshReviewDate = () => {
+            setReviewDate(getTodayDateString());
+        };
+
+        const scheduleNextReset = () => {
+            window.clearTimeout(resetTimeoutId);
+            resetTimeoutId = window.setTimeout(() => {
+                refreshReviewDate();
+                scheduleNextReset();
+            }, getMillisecondsUntilNextReviewReset() + 1000);
+        };
+
+        const handleVisibilityRefresh = () => {
+            if (document.hidden) return;
+            refreshReviewDate();
+            scheduleNextReset();
+        };
+
+        refreshReviewDate();
+        scheduleNextReset();
+        window.addEventListener('focus', handleVisibilityRefresh);
+        document.addEventListener('visibilitychange', handleVisibilityRefresh);
+
+        return () => {
+            window.clearTimeout(resetTimeoutId);
+            window.removeEventListener('focus', handleVisibilityRefresh);
+            document.removeEventListener('visibilitychange', handleVisibilityRefresh);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!isDataLoaded || !token) return;
+
+        const staleSameDayRecords = recordsRef.current
+            .filter(record => (record?.sameDayReviewTarget ?? 0) > 0 && record?.sameDayReviewDate !== reviewDate)
+            .map(record => normalizeReviewRecord(record, reviewDate));
+
+        if (staleSameDayRecords.length === 0) return;
+
+        const staleRecordMap = new Map(staleSameDayRecords.map(record => [record.id, record]));
+        setRecords(previousRecords => previousRecords.map(record => staleRecordMap.get(record.id) || record));
+        setReviewQueue(previousQueue => previousQueue.map(record => staleRecordMap.get(record.id) || record));
+
+        Promise.all(staleSameDayRecords.map(record =>
+            fetchWithAuth(`${API_BASE}/records/${record.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(record)
+            })
+        )).catch(error => {
+            console.error('清理过期当天巩固状态失败', error);
+        });
+    }, [fetchWithAuth, isDataLoaded, reviewDate, token]);
 
     useEffect(() => {
         if (!token) return undefined;
@@ -677,14 +736,12 @@ export default function SmartVocabularyApp() {
     };
 
     const mainDueRecords = useMemo(() => {
-        const today = getTodayDateString();
-        return records.filter(record => !record.mastered && !record.isFocusReview && record.nextReviewDate <= today);
-    }, [records]);
+        return records.filter(record => !record.mastered && !record.isFocusReview && record.nextReviewDate <= reviewDate);
+    }, [records, reviewDate]);
 
     const focusDueRecords = useMemo(() => {
-        const today = getTodayDateString();
-        return sortFocusRecords(records.filter(record => !record.mastered && record.isFocusReview && record.nextReviewDate <= today));
-    }, [records]);
+        return sortFocusRecords(records.filter(record => !record.mastered && record.isFocusReview && record.nextReviewDate <= reviewDate));
+    }, [records, reviewDate]);
 
     const focusBoardRecords = useMemo(() => {
         return sortFocusRecords(records.filter(record => !record.mastered && record.isFocusReview));
@@ -1037,17 +1094,16 @@ export default function SmartVocabularyApp() {
             }
         }
         if (listFilterDate !== 'all') {
-            const today = getTodayDateString();
-            if (listFilterDate === 'overdue') res = res.filter(r => !r.mastered && r.nextReviewDate < today);
-            else if (listFilterDate === 'today') res = res.filter(r => !r.mastered && r.nextReviewDate === today);
+            if (listFilterDate === 'overdue') res = res.filter(r => !r.mastered && r.nextReviewDate < reviewDate);
+            else if (listFilterDate === 'today') res = res.filter(r => !r.mastered && r.nextReviewDate === reviewDate);
             else if (listFilterDate === 'tomorrow') {
                 const tmrStr = getFutureDateString(1);
                 res = res.filter(r => !r.mastered && r.nextReviewDate === tmrStr);
             }
-            else if (listFilterDate === 'future') res = res.filter(r => !r.mastered && r.nextReviewDate > today);
+            else if (listFilterDate === 'future') res = res.filter(r => !r.mastered && r.nextReviewDate > reviewDate);
         }
         return res;
-    }, [records, filterLang, listFilterStage, listFilterDate]);
+    }, [records, filterLang, listFilterStage, listFilterDate, reviewDate]);
 
     const listViewRecords = useMemo(() => {
         const keyword = listSearchQuery.trim().toLowerCase();

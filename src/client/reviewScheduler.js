@@ -5,6 +5,8 @@ export const FOCUS_HARD_THRESHOLD = 5;
 export const FOCUS_RECOVERY_STREAK_TARGET = 2;
 const BEIJING_UTC_OFFSET_HOURS = 8;
 const REVIEW_RESET_HOUR_BEIJING = 4;
+const HOUR_IN_MS = 60 * 60 * 1000;
+const DAY_IN_MS = 24 * HOUR_IN_MS;
 
 export const EMPTY_SAME_DAY_REVIEW = {
     sameDayReviewDate: null,
@@ -26,8 +28,7 @@ function formatUtcDateString(date) {
 }
 
 function getBeijingShiftedDate(date = new Date(), shiftHours = 0) {
-    const utcTimestamp = date.getTime() + (date.getTimezoneOffset() * 60 * 1000);
-    const shiftedTimestamp = utcTimestamp + ((BEIJING_UTC_OFFSET_HOURS + shiftHours) * 60 * 60 * 1000);
+    const shiftedTimestamp = date.getTime() + ((BEIJING_UTC_OFFSET_HOURS + shiftHours) * HOUR_IN_MS);
     return new Date(shiftedTimestamp);
 }
 
@@ -43,6 +44,22 @@ export function getFutureDateString(days, date = new Date()) {
     const shiftedDate = getBeijingShiftedDate(date, -REVIEW_RESET_HOUR_BEIJING);
     shiftedDate.setUTCDate(shiftedDate.getUTCDate() + days);
     return formatUtcDateString(shiftedDate);
+}
+
+export function getMillisecondsUntilNextReviewReset(date = new Date()) {
+    const beijingDate = getBeijingShiftedDate(date);
+    let nextResetTimestamp = Date.UTC(
+        beijingDate.getUTCFullYear(),
+        beijingDate.getUTCMonth(),
+        beijingDate.getUTCDate(),
+        REVIEW_RESET_HOUR_BEIJING - BEIJING_UTC_OFFSET_HOURS
+    );
+
+    if (nextResetTimestamp <= date.getTime()) {
+        nextResetTimestamp += DAY_IN_MS;
+    }
+
+    return nextResetTimestamp - date.getTime();
 }
 
 export function clearSameDayReviewFields(record) {
