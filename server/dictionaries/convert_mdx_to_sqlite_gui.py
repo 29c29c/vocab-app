@@ -25,6 +25,7 @@ class ConverterGui:
         self.target_var = tk.StringVar(value=str(DEFAULT_TARGETS["en"]))
         self.limit_var = tk.StringVar(value="0")
         self.keep_tabfile_var = tk.BooleanVar(value=False)
+        self.append_var = tk.BooleanVar(value=False)
         self.status_var = tk.StringVar(value="准备就绪")
 
         self._build()
@@ -67,6 +68,7 @@ class ConverterGui:
 
         options = ttk.Frame(container)
         options.pack(fill="x", pady=(12, 8))
+        ttk.Checkbutton(options, text="追加到已有 SQLite，不覆盖原词典", variable=self.append_var).pack(anchor="w")
         ttk.Checkbutton(options, text="保留中间 tabfile 调试文件", variable=self.keep_tabfile_var).pack(anchor="w")
 
         actions = ttk.Frame(container)
@@ -185,6 +187,7 @@ class ConverterGui:
                     target=target,
                     limit=limit,
                     keep_tabfile=self.keep_tabfile_var.get(),
+                    append=self.append_var.get(),
                     logger=lambda message: self.log_queue.put(("log", message)),
                 )
                 self.log_queue.put(("done", f"转换完成：{result_path}"))

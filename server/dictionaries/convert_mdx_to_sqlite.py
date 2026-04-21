@@ -75,6 +75,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Keep the intermediate exported .txt tabfile for debugging.",
     )
+    parser.add_argument(
+        "--append",
+        action="store_true",
+        help="Append entries to the target SQLite file instead of replacing it.",
+    )
     return parser.parse_args()
 
 
@@ -254,9 +259,9 @@ def extract_surfaces(headword: str) -> list[str]:
     return surfaces[:5]
 
 
-def init_sqlite(target: Path) -> sqlite3.Connection:
+def init_sqlite(target: Path, append: bool = False) -> sqlite3.Connection:
     ensure_parent_dir(target)
-    if target.exists():
+    if target.exists() and not append:
         target.unlink()
 
     connection = sqlite3.connect(str(target))
@@ -264,7 +269,7 @@ def init_sqlite(target: Path) -> sqlite3.Connection:
     connection.execute("PRAGMA synchronous = NORMAL")
     connection.executescript(
         """
-        CREATE TABLE entries (
+        CREATE TABLE IF NOT EXISTS entries (
             surface TEXT,
             reading TEXT,
             gloss TEXT,
@@ -274,15 +279,66 @@ def init_sqlite(target: Path) -> sqlite3.Connection:
             example TEXT
         );
 
-        CREATE INDEX idx_entries_surface ON entries(surface);
-        CREATE INDEX idx_entries_reading ON entries(reading);
+        CREATE INDEX IF NOT EXISTS idx_entries_surface ON entries(surface);
+        CREATE INDEX IF NOT EXISTS idx_entries_reading ON entries(reading);
         """
     )
     return connection
 
 
-def import_tabfile_to_sqlite(tabfile_path: Path, target: Path, language: str, limit: int) -> int:
-    connection = init_sqlite(target)
+def insert_entry(
+    connection: sqlite3.Connection,
+    values: tuple[str, str, str, str, int, str, str],
+    skip_duplicates: bool,
+) -> bool:
+    if not skip_duplicates:
+        connection.execute(
+            """
+            INSERT INTO entries (
+                surface,
+                reading,
+                gloss,
+                pos,
+                priority,
+                phonetic,
+                example
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            values,
+        )
+        return True
+
+    cursor = connection.execute(
+        """
+        INSERT INTO entries (
+            surface,
+            reading,
+            gloss,
+            pos,
+            priority,
+            phonetic,
+            example
+        )
+        SELECT ?, ?, ?, ?, ?, ?, ?
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM entries
+            WHERE surface IS ?
+              AND reading IS ?
+              AND gloss IS ?
+              AND pos IS ?
+              AND priority IS ?
+              AND phonetic IS ?
+              AND example IS ?
+        )
+        """,
+        (*values, *values),
+    )
+    return cursor.rowcount > 0
+
+
+def import_tabfile_to_sqlite(tabfile_path: Path, target: Path, language: str, limit: int, append: bool = False) -> int:
+    connection = init_sqlite(target, append=append)
     inserted = 0
 
     try:
@@ -297,18 +353,8 @@ def import_tabfile_to_sqlite(tabfile_path: Path, target: Path, language: str, li
                 surfaces = extract_surfaces(headword)
 
                 for surface in surfaces:
-                    connection.execute(
-                        """
-                        INSERT INTO entries (
-                            surface,
-                            reading,
-                            gloss,
-                            pos,
-                            priority,
-                            phonetic,
-                            example
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """,
+                    was_inserted = insert_entry(
+                        connection,
                         (
                             surface,
                             reading,
@@ -318,7 +364,11 @@ def import_tabfile_to_sqlite(tabfile_path: Path, target: Path, language: str, li
                             phonetic,
                             example,
                         ),
+                        skip_duplicates=append,
                     )
+                    if not was_inserted:
+                        continue
+
                     inserted += 1
 
                     if limit > 0 and inserted >= limit:
@@ -335,6 +385,7 @@ def convert_mdx_to_sqlite(
     target: str | Path | None = None,
     limit: int = 0,
     keep_tabfile: bool = False,
+    append: bool = False,
     logger: Callable[[str], None] | None = None,
 ) -> Path:
     log = logger or print
@@ -362,10 +413,11 @@ def convert_mdx_to_sqlite(
             shutil.copyfile(tabfile_path, debug_tabfile)
             log(f"已保留中间 tabfile: {debug_tabfile}")
 
-        log(f"[2/3] 解析并写入 SQLite: {target_path}")
-        inserted = import_tabfile_to_sqlite(tabfile_path, target_path, language, limit)
+        mode_label = "追加写入" if append else "覆盖写入"
+        log(f"[2/3] 解析并{mode_label} SQLite: {target_path}")
+        inserted = import_tabfile_to_sqlite(tabfile_path, target_path, language, limit, append=append)
 
-    log(f"[3/3] 完成，共写入 {inserted} 条记录 -> {target_path}")
+    log(f"[3/3] 完成，共新增 {inserted} 条记录 -> {target_path}")
     return target_path
 
 
@@ -380,6 +432,7 @@ def main() -> None:
         target=args.target,
         limit=args.limit,
         keep_tabfile=args.keep_tabfile,
+        append=args.append,
     )
 
 

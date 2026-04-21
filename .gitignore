@@ -16,6 +16,7 @@ coverage/
 *.pfx
 
 # Local databases and runtime data
+*.mdx
 *.sqlite
 *.sqlite-*
 *.sqlite3

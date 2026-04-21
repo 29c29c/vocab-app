@@ -39,6 +39,17 @@ python3 server/dictionaries/convert_mdx_to_sqlite.py \
 - 英语：`server/dictionaries/en/main.sqlite`
 - 日语：`server/dictionaries/ja/main.sqlite`
 
+默认情况下，转换脚本会覆盖目标 SQLite 文件。如果要把新词典追加到已有库里，添加 `--append`：
+
+```bash
+python3 server/dictionaries/convert_mdx_to_sqlite.py \
+  --source "server/dictionaries/your-extra-dictionary.mdx" \
+  --language en \
+  --append
+```
+
+追加模式会保留原有 `entries`，并跳过完全相同的重复记录。
+
 ## GUI 使用
 
 如果你是在本机上手动操作，推荐直接运行 GUI：
@@ -64,5 +75,6 @@ GUI 支持：
 - 选择 `.mdx` 源文件
 - 选择英语 / 日语
 - 自定义输出 SQLite 路径
+- 追加到已有 SQLite，避免覆盖原词典
 - 限制导入条数
 - 保留中间 `tabfile` 以便排查
