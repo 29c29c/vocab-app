@@ -165,7 +165,7 @@ export default function ReviewView({
                                 onClick={() => setIsFlipped(!isFlipped)}
                                 className="relative w-full h-[clamp(430px,68vh,620px)] bg-white rounded-3xl shadow-2xl border border-slate-100 cursor-pointer overflow-hidden"
                             >
-                                <div className={`absolute inset-0 overflow-y-auto custom-scrollbar transition-opacity duration-200 ${isFlipped ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+                                <div className={`absolute inset-0 overflow-y-auto custom-scrollbar ${isFlipped ? 'hidden' : 'block'}`}>
                                     <div className="min-h-full flex flex-col items-center justify-center p-6 sm:p-8">
                                         <div className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-4">
                                             {currentQuestionType === 'A' ? '👀 看字读音' : currentQuestionType === 'B' ? '👂 听音辨义' : '🧠 回忆意思'}
@@ -200,7 +200,7 @@ export default function ReviewView({
                                     </div>
                                 </div>
 
-                                <div className={`absolute inset-0 flex flex-col p-5 sm:p-6 overflow-y-auto custom-scrollbar transition-opacity duration-200 ${!isFlipped ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+                                <div className={`absolute inset-0 flex-col p-5 sm:p-6 overflow-y-auto custom-scrollbar ${!isFlipped ? 'hidden' : 'flex'}`}>
                                     <div className="flex justify-between items-start gap-4 mb-4">
                                         <div className="min-w-0">
                                             <h3 className="text-2xl font-bold text-indigo-900 break-words">{currentReviewItem.word}</h3>
