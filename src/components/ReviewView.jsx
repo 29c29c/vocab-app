@@ -8,6 +8,18 @@ import {
 
 import MeaningSection from './MeaningSection.jsx';
 
+function ReviewSentenceBlock({ className = '', sentence, textClassName = 'text-slate-600' }) {
+    if (!sentence) return null;
+
+    return (
+        <div className={`bg-slate-50 p-3 rounded-xl border border-slate-100 overflow-hidden ${className}`}>
+            <p className={`${textClassName} italic leading-6 break-words max-h-36 overflow-y-auto custom-scrollbar pr-1`}>
+                &quot;{sentence}&quot;
+            </p>
+        </div>
+    );
+}
+
 function MasteredList({ onResurrect, records }) {
     const masteredRecords = records
         .filter(record => record.mastered)
@@ -135,7 +147,7 @@ export default function ReviewView({
                             </div>
                         )
                     ) : (
-                        <div className="perspective-1000">
+                        <div>
                             <div className="flex items-center justify-between text-xs text-slate-400 mb-2 px-2">
                                 <span>Queue: {reviewQueue.length} left</span>
                                 <div className="flex items-center gap-2">
@@ -151,44 +163,49 @@ export default function ReviewView({
                             </div>
                             <div
                                 onClick={() => setIsFlipped(!isFlipped)}
-                                className={`relative w-full bg-white rounded-3xl shadow-2xl border border-slate-100 p-8 cursor-pointer transition-all duration-500 transform-style-3d ${isFlipped ? 'rotate-y-180' : ''}`}
-                                style={{ minHeight: '400px' }}
+                                className="relative w-full h-[clamp(430px,68vh,620px)] bg-white rounded-3xl shadow-2xl border border-slate-100 cursor-pointer overflow-hidden"
                             >
-                                <div className={`absolute inset-0 backface-hidden flex flex-col items-center justify-center p-8 ${isFlipped ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-                                    <div className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-4">
-                                        {currentQuestionType === 'A' ? '👀 看字读音' : currentQuestionType === 'B' ? '👂 听音辨义' : '🧠 回忆意思'}
+                                <div className={`absolute inset-0 overflow-y-auto custom-scrollbar transition-opacity duration-200 ${isFlipped ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+                                    <div className="min-h-full flex flex-col items-center justify-center p-6 sm:p-8">
+                                        <div className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-4">
+                                            {currentQuestionType === 'A' ? '👀 看字读音' : currentQuestionType === 'B' ? '👂 听音辨义' : '🧠 回忆意思'}
+                                        </div>
+                                        {(currentQuestionType === 'A' || currentQuestionType === 'C') && (
+                                            <h2 className="text-4xl font-black text-slate-800 text-center mb-6 break-words">{currentReviewItem.word}</h2>
+                                        )}
+                                        {currentQuestionType === 'B' && (
+                                            <div className="text-center">
+                                                <button
+                                                    onClick={event => {
+                                                        event.stopPropagation();
+                                                        playTTS(currentReviewItem.reading || currentReviewItem.word);
+                                                    }}
+                                                    className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4 hover:bg-indigo-200 transition"
+                                                >
+                                                    <Volume2 className="w-8 h-8" />
+                                                </button>
+                                                <p className="text-2xl font-bold text-slate-600 break-words">{currentReviewItem.reading || '(无读音数据)'}</p>
+                                            </div>
+                                        )}
+                                        {showReviewSentence && (
+                                            <ReviewSentenceBlock
+                                                className="w-full mt-6"
+                                                sentence={currentReviewItem.sentence}
+                                                textClassName="text-sm text-slate-600 text-left"
+                                            />
+                                        )}
+                                        <p className="text-slate-400 text-sm mt-8 animate-pulse">
+                                            点击翻转查看答案
+                                        </p>
                                     </div>
-                                    {(currentQuestionType === 'A' || currentQuestionType === 'C') && (
-                                        <h2 className="text-4xl font-black text-slate-800 text-center mb-6">{currentReviewItem.word}</h2>
-                                    )}
-                                    {currentQuestionType === 'B' && (
-                                        <div className="text-center">
-                                            <button
-                                                onClick={event => {
-                                                    event.stopPropagation();
-                                                    playTTS(currentReviewItem.reading || currentReviewItem.word);
-                                                }}
-                                                className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4 hover:bg-indigo-200 transition"
-                                            >
-                                                <Volume2 className="w-8 h-8" />
-                                            </button>
-                                            <p className="text-2xl font-bold text-slate-600">{currentReviewItem.reading || '(无读音数据)'}</p>
-                                        </div>
-                                    )}
-                                    {showReviewSentence && currentReviewItem.sentence && (
-                                        <div className="w-full mt-6 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                            <p className="text-sm text-slate-600 italic text-left">"{currentReviewItem.sentence}"</p>
-                                        </div>
-                                    )}
-                                    <p className="text-slate-400 text-sm mt-8 animate-pulse">点击翻转查看答案</p>
                                 </div>
 
-                                <div className={`absolute inset-0 backface-hidden rotate-y-180 flex flex-col p-6 overflow-y-auto ${!isFlipped ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div>
-                                            <h3 className="text-2xl font-bold text-indigo-900">{currentReviewItem.word}</h3>
+                                <div className={`absolute inset-0 flex flex-col p-5 sm:p-6 overflow-y-auto custom-scrollbar transition-opacity duration-200 ${!isFlipped ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+                                    <div className="flex justify-between items-start gap-4 mb-4">
+                                        <div className="min-w-0">
+                                            <h3 className="text-2xl font-bold text-indigo-900 break-words">{currentReviewItem.word}</h3>
                                             <div className="flex items-center gap-2 mt-1">
-                                                <span className="text-lg text-indigo-600 font-mono">{currentReviewItem.reading}</span>
+                                                <span className="text-lg text-indigo-600 font-mono break-words min-w-0">{currentReviewItem.reading}</span>
                                                 <button
                                                     onClick={event => {
                                                         event.stopPropagation();
@@ -204,17 +221,13 @@ export default function ReviewView({
                                                 event.stopPropagation();
                                                 handleMaster(currentReviewItem.id);
                                             }}
-                                            className="bg-amber-100 text-amber-600 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 hover:bg-amber-200"
+                                            className="shrink-0 bg-amber-100 text-amber-600 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 hover:bg-amber-200"
                                         >
                                             <GraduationCap className="w-3 h-3" /> 毕业
                                         </button>
                                     </div>
-                                    {currentReviewItem.sentence && (
-                                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 mb-4">
-                                            <p className="text-slate-600 italic">"{currentReviewItem.sentence}"</p>
-                                        </div>
-                                    )}
-                                    <div className="flex-1 overflow-y-auto text-sm text-slate-600 space-y-2">
+                                    <ReviewSentenceBlock className="mb-4" sentence={currentReviewItem.sentence} />
+                                    <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar text-sm text-slate-600 space-y-2 pr-1">
                                         <MeaningSection record={currentReviewItem} onUpdate={updateRecord} />
                                     </div>
                                 </div>
