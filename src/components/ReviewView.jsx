@@ -163,7 +163,7 @@ export default function ReviewView({
                             </div>
                             <div
                                 onClick={() => setIsFlipped(!isFlipped)}
-                                className="relative w-full h-[clamp(430px,68vh,620px)] bg-white rounded-3xl shadow-2xl border border-slate-100 cursor-pointer overflow-hidden"
+                                className="relative w-full h-[420px] sm:h-[450px] bg-white rounded-3xl shadow-2xl border border-slate-100 cursor-pointer overflow-hidden"
                             >
                                 <div className={`absolute inset-0 overflow-y-auto custom-scrollbar ${isFlipped ? 'hidden' : 'block'}`}>
                                     <div className="min-h-full flex flex-col items-center justify-center p-6 sm:p-8">
