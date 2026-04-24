@@ -8,12 +8,17 @@ import {
 
 import MeaningSection from './MeaningSection.jsx';
 
-function ReviewSentenceBlock({ className = '', sentence, textClassName = 'text-slate-600' }) {
+function ReviewSentenceBlock({
+    className = '',
+    sentence,
+    textClassName = 'text-slate-600',
+    scrollable = true
+}) {
     if (!sentence) return null;
 
     return (
         <div className={`bg-slate-50 p-3 rounded-xl border border-slate-100 overflow-hidden ${className}`}>
-            <p className={`${textClassName} italic leading-6 break-words max-h-36 overflow-y-auto custom-scrollbar pr-1`}>
+            <p className={`${textClassName} italic leading-6 break-words ${scrollable ? 'max-h-36 overflow-y-auto custom-scrollbar pr-1' : ''}`}>
                 &quot;{sentence}&quot;
             </p>
         </div>
@@ -226,8 +231,11 @@ export default function ReviewView({
                                             <GraduationCap className="w-3 h-3" /> 毕业
                                         </button>
                                     </div>
-                                    <ReviewSentenceBlock className="mb-4" sentence={currentReviewItem.sentence} />
-                                    <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar text-sm text-slate-600 space-y-2 pr-1">
+                                    <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar text-sm text-slate-600 space-y-4 pr-1">
+                                        <ReviewSentenceBlock
+                                            sentence={currentReviewItem.sentence}
+                                            scrollable={false}
+                                        />
                                         <MeaningSection record={currentReviewItem} onUpdate={updateRecord} />
                                     </div>
                                 </div>
