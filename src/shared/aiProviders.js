@@ -1,12 +1,17 @@
 export const DEFAULT_AI_PROVIDER = 'deepseek';
 
+const DEEPSEEK_MODEL_ALIASES = {
+    'deepseek-chat': 'deepseek-v4-flash',
+    'deepseek-reasoner': 'deepseek-v4-pro'
+};
+
 export const AI_PROVIDER_PRESETS = {
     deepseek: {
         id: 'deepseek',
         label: 'DeepSeek',
         protocol: 'openai-compatible',
         baseUrl: 'https://api.deepseek.com',
-        model: 'deepseek-chat',
+        model: 'deepseek-v4-flash',
         supportsJsonMode: true
     },
     openai: {
@@ -65,4 +70,19 @@ export function getAiProviderPreset(provider) {
     }
 
     return AI_PROVIDER_PRESETS[DEFAULT_AI_PROVIDER];
+}
+
+export function normalizeAiModel(provider, model) {
+    const preset = getAiProviderPreset(provider);
+    const trimmedModel = typeof model === 'string' ? model.trim() : '';
+
+    if (!trimmedModel) {
+        return preset.model ?? '';
+    }
+
+    if (preset.id === 'deepseek') {
+        return DEEPSEEK_MODEL_ALIASES[trimmedModel] ?? trimmedModel;
+    }
+
+    return trimmedModel;
 }

@@ -1,7 +1,8 @@
 import {
     DEFAULT_AI_PROVIDER,
     getAiProviderPreset,
-    isSupportedAiProvider
+    isSupportedAiProvider,
+    normalizeAiModel
 } from '../shared/aiProviders.js';
 
 const defaultPreset = getAiProviderPreset(DEFAULT_AI_PROVIDER);
@@ -40,9 +41,7 @@ export function normalizeAppSettings(input) {
         dsBaseUrl: typeof source.dsBaseUrl === 'string' && source.dsBaseUrl.trim()
             ? source.dsBaseUrl.trim()
             : (preset.baseUrl ?? ''),
-        dsModel: typeof source.dsModel === 'string' && source.dsModel.trim()
-            ? source.dsModel.trim()
-            : (preset.model ?? DEFAULT_APP_SETTINGS.dsModel),
+        dsModel: normalizeAiModel(provider, source.dsModel || preset.model || DEFAULT_APP_SETTINGS.dsModel),
         provider,
         reviewShortcutEasy: normalizeShortcutKey(source.reviewShortcutEasy, DEFAULT_APP_SETTINGS.reviewShortcutEasy),
         reviewShortcutForget: normalizeShortcutKey(source.reviewShortcutForget, DEFAULT_APP_SETTINGS.reviewShortcutForget),
