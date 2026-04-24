@@ -51,21 +51,27 @@ export default function MeaningSection({ record, onUpdate }) {
     };
 
     return (
-        <div className="space-y-4" onClick={stopCardFlip} onMouseDown={stopCardFlip}>
+        <div className="space-y-4">
             <div className="bg-yellow-50/50 border border-yellow-100 rounded-xl p-4 transition-all hover:border-yellow-200">
                 <div className="flex justify-between items-start mb-2">
                     <h4 className="text-xs font-bold text-yellow-600 uppercase tracking-wider flex items-center gap-1">
                         <Edit3 className="w-3 h-3" /> 我的笔记 / 手动释义
                     </h4>
                     {!isEditing && (
-                        <button onClick={() => setIsEditing(true)} className="text-xs text-yellow-600 hover:underline">
+                        <button
+                            onClick={event => {
+                                stopCardFlip(event);
+                                setIsEditing(true);
+                            }}
+                            className="text-xs text-yellow-600 hover:underline"
+                        >
                             {record.customMeaning ? '编辑' : '添加'}
                         </button>
                     )}
                 </div>
 
                 {isEditing ? (
-                    <div className="flex gap-2">
+                    <div className="flex gap-2" onClick={stopCardFlip} onMouseDown={stopCardFlip}>
                         <input
                             type="text"
                             value={tempMeaning}
@@ -85,7 +91,10 @@ export default function MeaningSection({ record, onUpdate }) {
                             <p className="text-sm text-slate-800 font-medium">{record.customMeaning}</p>
                         ) : (
                             <button
-                                onClick={() => setIsEditing(true)}
+                                onClick={event => {
+                                    stopCardFlip(event);
+                                    setIsEditing(true);
+                                }}
                                 className="w-full text-left text-xs text-slate-400 border border-dashed border-slate-300 rounded p-2 hover:bg-slate-50 transition-colors"
                             >
                                 + 点击添加手动释义 (优先展示)
