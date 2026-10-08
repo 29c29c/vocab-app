@@ -37,6 +37,7 @@ export default function AppHeader({
     onCreateInviteCode,
     onDeleteInviteCode,
     onRefreshInviteCodes,
+    onRetrySettings,
     onSaveApiKey,
     onSetView,
     onToggleInviteCode,
@@ -44,11 +45,19 @@ export default function AppHeader({
     onUpdateApiKeyDraft,
     provider,
     recordsCount,
+    dataStatus,
+    pendingCount,
+    activeWriteCount,
+    saveError,
     reviewShortcutEasy,
     reviewShortcutForget,
     reviewShortcutHard,
     reviewQueueLength,
     saveStatus,
+    settingsError,
+    settingsSaveError,
+    settingsSaveStatus,
+    settingsStatus,
     showSettings,
     showReviewSentence,
     onToggleSettings,
@@ -78,7 +87,18 @@ export default function AppHeader({
                             记忆飞船 <span className="opacity-80 font-normal text-xs bg-white/20 px-2 py-0.5 rounded">V7.0 Beta</span>
                         </h1>
                         <div className="text-xs opacity-70 flex gap-2">
-                            <span>{saveStatus === 'saving' ? '云端同步中...' : `已存 ${recordsCount} 条`}</span>
+                            <span>{dataStatus === 'loading' || dataStatus === 'idle'
+                                ? '单词加载中…'
+                                : dataStatus === 'error'
+                                    ? '单词加载失败'
+                                    : recordsCount === null
+                                        ? '复习数据已加载（总数待核对）'
+                                        : `已存 ${recordsCount} 条${dataStatus === 'cached' ? '（本地待核对）' : dataStatus === 'partial' ? '（复习先行）' : ''}`}</span>
+                            <span>|</span>
+                            <span>{saveStatus === 'saved' ? '已保存到服务器'
+                                : saveStatus === 'saving' ? `${pendingCount + activeWriteCount} 项保存中`
+                                    : saveStatus === 'conflict' ? '保存冲突，需处理'
+                                        : saveError ? '保存失败' : '保存中…'}</span>
                             <span>|</span>
                             <span>用户: {currentUser}</span>
                         </div>
@@ -171,12 +191,17 @@ export default function AppHeader({
                     onCreateInviteCode={onCreateInviteCode}
                     onDeleteInviteCode={onDeleteInviteCode}
                     onRefreshInviteCodes={onRefreshInviteCodes}
+                    onRetrySettings={onRetrySettings}
                     onSaveApiKey={onSaveApiKey}
                     onToggleInviteCode={onToggleInviteCode}
                     onUpdateInviteCodeDraft={onUpdateInviteCodeDraft}
                     onUpdateApiKeyDraft={onUpdateApiKeyDraft}
                     onUpdateSetting={onUpdateSetting}
                     provider={provider}
+                    settingsError={settingsError}
+                    settingsSaveError={settingsSaveError}
+                    settingsSaveStatus={settingsSaveStatus}
+                    settingsStatus={settingsStatus}
                     reviewShortcutEasy={reviewShortcutEasy}
                     reviewShortcutForget={reviewShortcutForget}
                     reviewShortcutHard={reviewShortcutHard}

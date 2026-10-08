@@ -9,6 +9,11 @@ export async function getUserData(userId) {
     return rows.map(mapRecordRowToApiRecord);
 }
 
+export async function getReviewBootstrap(userId, today) {
+    const { count, rows } = await recordRepository.findReviewBootstrapByUserId(userId, today);
+    return { count, records: rows.map(mapRecordRowToApiRecord) };
+}
+
 export async function replaceUserData(userId, records) {
     const dbRecords = records.map(record => mapLegacyPayloadToDbRecord(userId, record));
     await recordRepository.replaceUserRecords(userId, dbRecords);

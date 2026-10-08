@@ -5,6 +5,7 @@ import {
     Printer, Trophy, Zap
 } from 'lucide-react';
 import { requestAiCompletion } from './client/aiApi.js';
+import { getAccountId } from './client/authIdentity.js';
 import { requestDictionaryLookup } from './client/dictionaryApi.js';
 import { DEFAULT_APP_SETTINGS, hasAiConfig, normalizeAppSettings } from './client/defaultSettings.js';
 import {
@@ -25,6 +26,7 @@ import {
     startSameDayReview
 } from './client/reviewScheduler.js';
 import { readSettingsCache, writeSettingsCache } from './client/settingsCache.js';
+import { RecordSync } from './client/recordSync.js';
 import { loadXlsxLibrary } from './client/xlsxLoader.js';
 import { getAiProviderPreset } from './shared/aiProviders.js';
 import AppHeader from './components/AppHeader.jsx';
@@ -97,10 +99,25 @@ const getRecordSortTimestamp = record => {
     return Number.isNaN(timestamp) ? 0 : timestamp;
 };
 
+const REVIEW_PROGRESS_FIELDS = [
+    'reviewStage', 'nextReviewDate', 'sameDayReviewDate', 'sameDayReviewTarget',
+    'sameDayReviewDone', 'forgetCount', 'hardCount', 'isFocusReview',
+    'focusRecoveryStreak', 'focusLastReviewDate', 'mastered', 'masteredDate'
+];
+
+function restoreReviewProgress(latest, snapshot) {
+    const restored = { ...latest };
+    REVIEW_PROGRESS_FIELDS.forEach(field => { restored[field] = snapshot[field]; });
+    return restored;
+}
+
 // --- 主应用逻辑 ---
 export default function SmartVocabularyApp() {
     const [token, setToken] = useState(() => localStorage.getItem('auth_token'));
     const [currentUser, setCurrentUser] = useState(() => localStorage.getItem('auth_user'));
+    const [authEpoch, setAuthEpoch] = useState(0);
+    const authEpochRef = useRef(0);
+    const accountId = useMemo(() => getAccountId(token), [token]);
 
     // 核心数据
     const [records, setRecords] = useState([]);
@@ -113,7 +130,19 @@ export default function SmartVocabularyApp() {
     const [listSearchQuery, setListSearchQuery] = useState('');
 
     const [isDataLoaded, setIsDataLoaded] = useState(false);
+    const [dataStatus, setDataStatus] = useState('loading');
+    const [recordCount, setRecordCount] = useState(null);
+    const [dataError, setDataError] = useState('');
     const [saveStatus, setSaveStatus] = useState('saved');
+    const [saveError, setSaveError] = useState('');
+    const [pendingCount, setPendingCount] = useState(0);
+    const [activeWriteCount, setActiveWriteCount] = useState(0);
+    const [directWriteError, setDirectWriteError] = useState('');
+    const [actionError, setActionError] = useState('');
+    const effectiveSaveStatus = activeWriteCount > 0 ? 'saving' : directWriteError ? 'error' : saveStatus;
+    const effectiveSaveError = directWriteError || saveError;
+    const inputSaveStatus = activeWriteCount > 0 ? 'saving' : directWriteError ? 'error' : 'saved';
+    const [conflictId, setConflictId] = useState(null);
     const [isBatchAnalyzing, setIsBatchAnalyzing] = useState(false);
 
     // 模态框
@@ -139,9 +168,22 @@ export default function SmartVocabularyApp() {
     // AI & Settings
     const [showSettings, setShowSettings] = useState(false);
     const [settingsLoaded, setSettingsLoaded] = useState(false);
+    const [settingsStatus, setSettingsStatus] = useState('loading');
+    const [settingsError, setSettingsError] = useState('');
+    const [settingsSaveStatus, setSettingsSaveStatus] = useState('saved');
+    const [settingsSaveError, setSettingsSaveError] = useState('');
+    const [settingsRetryVersion, setSettingsRetryVersion] = useState(0);
     const fileInputRef = useRef(null);
-    const [settings, setSettings] = useState(() => readSettingsCache());
+    const [settings, setSettings] = useState(() => readSettingsCache(getAccountId(localStorage.getItem('auth_token'))));
+    const settingsDirtyRef = useRef(false);
+    const settingsPatchRef = useRef({});
+    const settingsSaveQueueRef = useRef(Promise.resolve());
+    const settingsVersionRef = useRef(0);
+    const settingsRetryDelayRef = useRef(2000);
+    const settingsRequestAccountRef = useRef(null);
+    const [settingsDirtyVersion, setSettingsDirtyVersion] = useState(0);
     const [apiKeyDraft, setApiKeyDraft] = useState('');
+    const apiKeyDraftDirtyRef = useRef(false);
     const [apiKeySaveStatus, setApiKeySaveStatus] = useState('idle');
     const [apiKeySaveMessage, setApiKeySaveMessage] = useState('');
     const [isSavingApiKey, setIsSavingApiKey] = useState(false);
@@ -154,28 +196,30 @@ export default function SmartVocabularyApp() {
     const [inviteCodeMutatingId, setInviteCodeMutatingId] = useState(null);
     const [isCreatingInviteCode, setIsCreatingInviteCode] = useState(false);
     const recordsRef = useRef([]);
+    const recordSyncRef = useRef(null);
+    const reviewActionPendingRef = useRef(false);
     const reviewResultHandlerRef = useRef(null);
     const { provider } = settings;
-    const publicSettings = useMemo(() => ({
-        provider: settings.provider,
-        dsBaseUrl: settings.dsBaseUrl,
-        dsModel: settings.dsModel,
-        reviewShortcutEasy: settings.reviewShortcutEasy,
-        reviewShortcutForget: settings.reviewShortcutForget,
-        reviewShortcutHard: settings.reviewShortcutHard,
-        showReviewSentence: settings.showReviewSentence
-    }), [
-        settings.dsBaseUrl,
-        settings.dsModel,
-        settings.provider,
-        settings.reviewShortcutEasy,
-        settings.reviewShortcutForget,
-        settings.reviewShortcutHard,
-        settings.showReviewSentence
-    ]);
+    const sessionIsCurrent = () => authEpochRef.current === authEpoch;
 
     // --- Auth Handlers ---
     const handleLogin = useCallback((newToken, username) => {
+        authEpochRef.current += 1;
+        setAuthEpoch(authEpochRef.current);
+        recordSyncRef.current?.stop();
+        recordSyncRef.current = null;
+        recordsRef.current = [];
+        setRecords([]);
+        setRecordCount(null);
+        setIsDataLoaded(false);
+        setDataStatus('loading');
+        setDirectWriteError('');
+        setActionError('');
+        setReviewQueue([]);
+        setReviewHistory([]);
+        setReviewTab('queue');
+        setSettings(readSettingsCache(getAccountId(newToken)));
+        apiKeyDraftDirtyRef.current = false;
         localStorage.setItem('auth_token', newToken);
         localStorage.setItem('auth_user', username);
         setToken(newToken);
@@ -183,18 +227,47 @@ export default function SmartVocabularyApp() {
     }, []);
 
     const handleLogout = useCallback(() => {
+        authEpochRef.current += 1;
+        setAuthEpoch(authEpochRef.current);
+        recordSyncRef.current?.stop();
+        recordSyncRef.current = null;
         localStorage.removeItem('auth_token');
         localStorage.removeItem('auth_user');
         setToken(null);
         setCurrentUser(null);
         setRecords([]);
+        setRecordCount(null);
+        recordsRef.current = [];
         setIsDataLoaded(false);
+        setDataStatus('idle');
+        setDataError('');
+        setReviewQueue([]);
+        setReviewHistory([]);
+        setReviewTab('queue');
+        setIsFlipped(false);
+        setModalRecord(null);
+        setSaveStatus('saved');
+        setSaveError('');
+        setPendingCount(0);
+        setActiveWriteCount(0);
+        setDirectWriteError('');
+        setActionError('');
+        setConflictId(null);
         setSettings({ ...DEFAULT_APP_SETTINGS });
+        settingsDirtyRef.current = false;
+        settingsPatchRef.current = {};
+        settingsSaveQueueRef.current = Promise.resolve();
         setApiKeyDraft('');
+        apiKeyDraftDirtyRef.current = false;
         setApiKeySaveStatus('idle');
         setApiKeySaveMessage('');
         setIsSavingApiKey(false);
         setSettingsLoaded(false);
+        setSettingsStatus('idle');
+        setSettingsError('');
+        setSettingsSaveStatus('saved');
+        setSettingsSaveError('');
+        settingsRequestAccountRef.current = null;
         setIsAdmin(false);
         setAdminStatusChecked(false);
         setInviteCodes([]);
@@ -210,12 +283,12 @@ export default function SmartVocabularyApp() {
     const fetchWithAuth = useCallback(async (url, options = {}) => {
         const headers = { ...options.headers, 'Authorization': `Bearer ${token}` };
         const res = await fetch(url, { ...options, headers });
-        if (res.status === 401) {
+        if (res.status === 401 && authEpochRef.current === authEpoch) {
             handleLogout();
             throw new Error("登录已过期，请重新登录");
         }
         return res;
-    }, [handleLogout, token]);
+    }, [authEpoch, handleLogout, token]);
 
     const requestAiPrompt = useCallback((prompt, responseFormat = 'text') => {
         return requestAiCompletion(fetchWithAuth, { prompt, responseFormat });
@@ -227,10 +300,17 @@ export default function SmartVocabularyApp() {
     }, [records]);
 
     useEffect(() => {
+        if (!isDataLoaded) return;
+        setRecords(previous => previous.map(record => normalizeReviewRecord(record, reviewDate)));
+        setReviewQueue(previous => previous.map(record => normalizeReviewRecord(record, reviewDate)));
+    }, [isDataLoaded, reviewDate]);
+
+    useEffect(() => {
         let resetTimeoutId;
 
         const refreshReviewDate = () => {
             setReviewDate(getTodayDateString());
+            recordSyncRef.current?.retryIfNeeded();
         };
 
         const scheduleNextReset = () => {
@@ -260,142 +340,209 @@ export default function SmartVocabularyApp() {
     }, []);
 
     useEffect(() => {
-        if (!isDataLoaded || !token) return;
-
-        const staleSameDayRecords = recordsRef.current
-            .filter(record => (record?.sameDayReviewTarget ?? 0) > 0 && record?.sameDayReviewDate !== reviewDate)
-            .map(record => normalizeReviewRecord(record, reviewDate));
-
-        if (staleSameDayRecords.length === 0) return;
-
-        const staleRecordMap = new Map(staleSameDayRecords.map(record => [record.id, record]));
-        setRecords(previousRecords => previousRecords.map(record => staleRecordMap.get(record.id) || record));
-        setReviewQueue(previousQueue => previousQueue.map(record => staleRecordMap.get(record.id) || record));
-
-        Promise.all(staleSameDayRecords.map(record =>
-            fetchWithAuth(`${API_BASE}/records/${record.id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(record)
-            })
-        )).catch(error => {
-            console.error('清理过期当天巩固状态失败', error);
-        });
-    }, [fetchWithAuth, isDataLoaded, reviewDate, token]);
+        if (token && !accountId) handleLogout();
+    }, [accountId, handleLogout, token]);
 
     useEffect(() => {
-        if (!token) return undefined;
+        if (!token || !accountId) return undefined;
+        const epoch = authEpoch;
+        const sync = new RecordSync({
+            account: accountId,
+            token,
+            onRecords: nextRecords => {
+                if (authEpochRef.current !== epoch) return;
+                recordsRef.current = nextRecords;
+                setRecords(nextRecords);
+            },
+            onRecordCount: count => {
+                if (authEpochRef.current === epoch) setRecordCount(count);
+            },
+            onRemoteChanges: changedIds => {
+                if (authEpochRef.current !== epoch) return;
+                const changed = new Set(changedIds);
+                setReviewHistory(previous => previous.filter(entry => !changed.has(entry.record.id)));
+                setModalRecord(previous => previous && changed.has(previous.id) ? null : previous);
+            },
+            onDataStatus: (status, error = '') => {
+                if (authEpochRef.current !== epoch) return;
+                setDataStatus(status);
+                setDataError(error);
+                if (status === 'success' || status === 'cached' || status === 'partial') setIsDataLoaded(true);
+            },
+            onSaveStatus: ({ status, pendingCount: count, conflictId: id, error }) => {
+                if (authEpochRef.current !== epoch) return;
+                setSaveStatus(status);
+                setPendingCount(count);
+                setConflictId(id);
+                setSaveError(error);
+            },
+            onUnauthorized: () => {
+                if (authEpochRef.current === epoch) handleLogout();
+            }
+        });
+        recordSyncRef.current = sync;
+        const handleOnline = () => sync.retry();
+        const handleFocus = () => sync.retryIfNeeded();
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('focus', handleFocus);
+        return () => {
+            sync.stop();
+            if (recordSyncRef.current === sync) recordSyncRef.current = null;
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('focus', handleFocus);
+        };
+    }, [accountId, authEpoch, handleLogout, token]);
 
+    useEffect(() => {
+        if (!token || !accountId) return undefined;
         let cancelled = false;
-        loadXlsxLibrary().catch(error => console.error('Excel 组件加载失败', error));
-
-        const fetchData = async () => {
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), 12000);
+        if (settingsRequestAccountRef.current !== accountId) {
+            settingsRequestAccountRef.current = accountId;
+            settingsDirtyRef.current = false;
+            settingsPatchRef.current = {};
+            setSettings(readSettingsCache(accountId));
+            setSettingsLoaded(false);
+            setSettingsSaveStatus('saved');
+            setSettingsSaveError('');
+            settingsRetryDelayRef.current = 2000;
+            apiKeyDraftDirtyRef.current = false;
+        }
+        setSettingsStatus('loading');
+        setSettingsError('');
+        const loadSettings = async () => {
             try {
-                const [dataRes, settingsRes] = await Promise.all([
-                    fetchWithAuth(`${API_BASE}/data`),
-                    fetchWithAuth(`${API_BASE}/settings`)
-                ]);
-
-                if (!dataRes.ok) throw new Error("获取数据失败");
-                if (!settingsRes.ok) throw new Error("获取设置失败");
-
-                const data = await dataRes.json();
-                const today = getTodayDateString();
-                const migratedData = (Array.isArray(data) ? data : []).map(record => normalizeReviewRecord(record, today));
-                const staleSameDayRecords = (Array.isArray(data) ? data : [])
-                    .filter(record => (record?.sameDayReviewTarget ?? 0) > 0 && record?.sameDayReviewDate !== today)
-                    .map(record => normalizeReviewRecord(record, today));
-
-                const serverSettings = normalizeAppSettings(await settingsRes.json());
-                const cachedSettings = readSettingsCache();
-                const effectiveSettings = normalizeAppSettings({
-                    ...cachedSettings,
-                    ...serverSettings
-                });
-
+                const response = await fetchWithAuth(`${API_BASE}/settings`, { signal: controller.signal });
+                if (!response.ok) throw new Error('获取设置失败');
+                const serverSettings = normalizeAppSettings(await response.json());
                 if (cancelled) return;
-
-                setRecords(migratedData);
-                setIsDataLoaded(true);
-                setSettings(effectiveSettings);
-                setApiKeyDraft(serverSettings.apiKey || '');
-                setApiKeySaveStatus(serverSettings.apiKey ? 'saved' : 'idle');
-                setApiKeySaveMessage(serverSettings.apiKey ? '当前 API Key 已从服务端加载。' : '');
-                setSettingsLoaded(true);
-                writeSettingsCache(effectiveSettings);
-
-                if (staleSameDayRecords.length > 0) {
-                    Promise.all(staleSameDayRecords.map(record =>
-                        fetchWithAuth(`${API_BASE}/records/${record.id}`, {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(record)
-                        })
-                    )).catch(error => {
-                        console.error('清理过期当天巩固状态失败', error);
-                    });
+                setSettings(normalizeAppSettings({ ...serverSettings, ...settingsPatchRef.current }));
+                setSettingsStatus('success');
+                if (!apiKeyDraftDirtyRef.current) {
+                    setApiKeyDraft(serverSettings.apiKey || '');
+                    setApiKeySaveStatus(serverSettings.apiKey ? 'saved' : 'idle');
+                    setApiKeySaveMessage(serverSettings.apiKey ? '当前 API Key 已从服务端加载。' : '');
                 }
+                writeSettingsCache(accountId, serverSettings);
             } catch (error) {
-                console.error(error);
                 if (!cancelled) {
-                    setSettings(readSettingsCache());
-                    setApiKeyDraft('');
-                    setApiKeySaveStatus('idle');
-                    setApiKeySaveMessage('');
-                    setSettingsLoaded(true);
+                    setSettingsStatus('error');
+                    setSettingsError(error.name === 'AbortError' ? '设置请求超时' : error.message);
                 }
+            } finally {
+                if (!cancelled) setSettingsLoaded(true);
+                window.clearTimeout(timeoutId);
             }
         };
-        fetchData();
+        void loadSettings();
         return () => {
             cancelled = true;
-        };
-    }, [fetchWithAuth, token]);
-
-    useEffect(() => {
-        if (!token || !settingsLoaded) return undefined;
-
-        const timeoutId = window.setTimeout(async () => {
-            try {
-                await fetchWithAuth(`${API_BASE}/settings`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(publicSettings)
-                });
-                writeSettingsCache(publicSettings);
-            } catch (error) {
-                console.error('保存设置失败', error);
-            }
-        }, 400);
-
-        return () => {
+            controller.abort();
             window.clearTimeout(timeoutId);
         };
-    }, [fetchWithAuth, publicSettings, settingsLoaded, token]);
+    }, [accountId, fetchWithAuth, settingsRetryVersion, token]);
+
+    useEffect(() => {
+        if (!token || !accountId || !settingsLoaded || !settingsDirtyRef.current) return undefined;
+        const version = settingsVersionRef.current;
+        const epoch = authEpoch;
+        const patch = { ...settingsPatchRef.current };
+        setSettingsSaveStatus('saving');
+        const timeoutId = window.setTimeout(() => {
+            settingsSaveQueueRef.current = settingsSaveQueueRef.current.catch(() => {}).then(async () => {
+                const controller = new AbortController();
+                const requestTimeoutId = window.setTimeout(() => controller.abort(), 12000);
+                let response;
+                try {
+                    response = await fetchWithAuth(`${API_BASE}/settings`, {
+                        method: 'POST',
+                        signal: controller.signal,
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(patch)
+                    });
+                } finally {
+                    window.clearTimeout(requestTimeoutId);
+                }
+                if (!response.ok) throw new Error('保存设置失败');
+                if (authEpochRef.current === epoch && version === settingsVersionRef.current) {
+                    settingsDirtyRef.current = false;
+                    settingsPatchRef.current = {};
+                    setSettingsSaveStatus('saved');
+                    setSettingsSaveError('');
+                    writeSettingsCache(accountId, normalizeAppSettings({
+                        ...readSettingsCache(accountId), ...patch
+                    }));
+                }
+            }).catch(error => {
+                if (authEpochRef.current !== epoch) return;
+                setSettingsSaveStatus('error');
+                setSettingsSaveError(error.name === 'AbortError' ? '设置保存超时，稍后会重试。' : error.message);
+            });
+        }, 400);
+        return () => window.clearTimeout(timeoutId);
+    }, [accountId, authEpoch, fetchWithAuth, settingsDirtyVersion, settingsLoaded, token]);
+
+    useEffect(() => {
+        const retrySettings = () => {
+            if (settingsDirtyRef.current) setSettingsDirtyVersion(previous => previous + 1);
+            if (settingsStatus === 'error') setSettingsRetryVersion(previous => previous + 1);
+        };
+        window.addEventListener('online', retrySettings);
+        window.addEventListener('focus', retrySettings);
+        return () => {
+            window.removeEventListener('online', retrySettings);
+            window.removeEventListener('focus', retrySettings);
+        };
+    }, [settingsStatus]);
+
+    useEffect(() => {
+        if (!token || !accountId) return undefined;
+        if (settingsStatus !== 'error' && settingsSaveStatus !== 'error') {
+            if (settingsStatus === 'success' && settingsSaveStatus === 'saved') {
+                settingsRetryDelayRef.current = 2000;
+            }
+            return undefined;
+        }
+        const timeoutId = window.setTimeout(() => {
+            if (settingsStatus === 'error') setSettingsRetryVersion(previous => previous + 1);
+            if (settingsSaveStatus === 'error' && settingsDirtyRef.current) {
+                setSettingsDirtyVersion(previous => previous + 1);
+            }
+        }, settingsRetryDelayRef.current);
+        settingsRetryDelayRef.current = Math.min(settingsRetryDelayRef.current * 2, 30000);
+        return () => window.clearTimeout(timeoutId);
+    }, [accountId, settingsSaveStatus, settingsStatus, token]);
 
     const updateSetting = (key, val) => {
-        setSettings(previous => {
-            if (key === 'provider') {
+        const patch = key === 'provider'
+            ? (() => {
                 const preset = getAiProviderPreset(val);
-                return {
-                    ...previous,
-                    provider: val,
-                    dsBaseUrl: preset.baseUrl || '',
-                    dsModel: preset.model || previous.dsModel
-                };
-            }
-
-            return { ...previous, [key]: val };
-        });
+                return { provider: val, dsBaseUrl: preset.baseUrl || '', dsModel: preset.model || settings.dsModel };
+            })()
+            : { [key]: val };
+        settingsDirtyRef.current = true;
+        setSettingsSaveStatus('saving');
+        setSettingsSaveError('');
+        settingsPatchRef.current = { ...settingsPatchRef.current, ...patch };
+        settingsVersionRef.current += 1;
+        setSettingsDirtyVersion(settingsVersionRef.current);
+        setSettings(previous => ({ ...previous, ...patch }));
+    };
+    const retrySettings = () => {
+        setSettingsRetryVersion(previous => previous + 1);
+        if (settingsDirtyRef.current) setSettingsDirtyVersion(previous => previous + 1);
     };
     const updateInviteCodeDraft = (key, value) => setInviteCodeDraft(previous => ({ ...previous, [key]: value }));
     const updateApiKeyDraft = value => {
+        apiKeyDraftDirtyRef.current = true;
         setApiKeyDraft(value);
         setApiKeySaveStatus('idle');
         setApiKeySaveMessage('');
     };
 
     const handleSaveApiKey = useCallback(async () => {
+        const epoch = authEpoch;
         const trimmedApiKey = apiKeyDraft.trim();
 
         setIsSavingApiKey(true);
@@ -403,11 +550,23 @@ export default function SmartVocabularyApp() {
         setApiKeySaveMessage('');
 
         try {
-            const response = await fetchWithAuth(`${API_BASE}/settings/api-key`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ apiKey: trimmedApiKey })
+            const save = settingsSaveQueueRef.current.catch(() => {}).then(async () => {
+                const controller = new AbortController();
+                const timeoutId = window.setTimeout(() => controller.abort(), 12000);
+                try {
+                    return await fetchWithAuth(`${API_BASE}/settings/api-key`, {
+                        method: 'POST',
+                        signal: controller.signal,
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ apiKey: trimmedApiKey })
+                    });
+                } finally {
+                    window.clearTimeout(timeoutId);
+                }
             });
+            settingsSaveQueueRef.current = save.catch(() => {});
+            const response = await save;
+            if (authEpochRef.current !== epoch) return;
 
             if (!response.ok) {
                 const data = await response.json().catch(() => ({}));
@@ -416,16 +575,18 @@ export default function SmartVocabularyApp() {
 
             setSettings(previous => ({ ...previous, apiKey: trimmedApiKey }));
             setApiKeyDraft(trimmedApiKey);
+            apiKeyDraftDirtyRef.current = false;
             setApiKeySaveStatus('saved');
             setApiKeySaveMessage(trimmedApiKey ? 'API Key 已保存到服务端。' : '服务端 API Key 已清空。');
         } catch (error) {
+            if (authEpochRef.current !== epoch) return;
             console.error('保存 API Key 失败', error);
             setApiKeySaveStatus('error');
             setApiKeySaveMessage(error.message || '保存 API Key 失败');
         } finally {
-            setIsSavingApiKey(false);
+            if (authEpochRef.current === epoch) setIsSavingApiKey(false);
         }
-    }, [apiKeyDraft, fetchWithAuth]);
+    }, [apiKeyDraft, authEpoch, fetchWithAuth]);
 
     const loadInviteCodes = useCallback(async () => {
         if (!token) return;
@@ -435,6 +596,7 @@ export default function SmartVocabularyApp() {
 
         try {
             const response = await fetchWithAuth(`${API_BASE}/admin/invite-codes`);
+            if (authEpochRef.current !== authEpoch) return;
 
             if (response.status === 403) {
                 setIsAdmin(false);
@@ -449,19 +611,21 @@ export default function SmartVocabularyApp() {
             }
 
             const data = await response.json();
+            if (authEpochRef.current !== authEpoch) return;
             setIsAdmin(true);
             setAdminStatusChecked(true);
             setInviteCodes(Array.isArray(data) ? data : []);
         } catch (error) {
+            if (authEpochRef.current !== authEpoch) return;
             console.error('获取邀请码失败', error);
             if (error.message !== '登录已过期，请重新登录') {
                 setInviteCodeError(error.message || '获取邀请码失败');
                 setAdminStatusChecked(true);
             }
         } finally {
-            setInviteCodesLoading(false);
+            if (authEpochRef.current === authEpoch) setInviteCodesLoading(false);
         }
-    }, [fetchWithAuth, token]);
+    }, [authEpoch, fetchWithAuth, token]);
 
     useEffect(() => {
         if (!token || !showSettings) return;
@@ -491,6 +655,7 @@ export default function SmartVocabularyApp() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ code: normalizedCode, maxUses })
             });
+            if (!sessionIsCurrent()) return;
 
             if (!response.ok) {
                 const data = await response.json().catch(() => ({}));
@@ -500,10 +665,11 @@ export default function SmartVocabularyApp() {
             setInviteCodeDraft({ code: '', maxUses: '1' });
             await loadInviteCodes();
         } catch (error) {
+            if (!sessionIsCurrent()) return;
             console.error('创建邀请码失败', error);
             setInviteCodeError(error.message || '创建邀请码失败');
         } finally {
-            setIsCreatingInviteCode(false);
+            if (sessionIsCurrent()) setIsCreatingInviteCode(false);
         }
     };
 
@@ -517,6 +683,7 @@ export default function SmartVocabularyApp() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ isActive: !inviteCode.isActive })
             });
+            if (!sessionIsCurrent()) return;
 
             if (!response.ok) {
                 const data = await response.json().catch(() => ({}));
@@ -525,10 +692,11 @@ export default function SmartVocabularyApp() {
 
             await loadInviteCodes();
         } catch (error) {
+            if (!sessionIsCurrent()) return;
             console.error('更新邀请码失败', error);
             setInviteCodeError(error.message || '更新邀请码失败');
         } finally {
-            setInviteCodeMutatingId(null);
+            if (sessionIsCurrent()) setInviteCodeMutatingId(null);
         }
     };
 
@@ -542,6 +710,7 @@ export default function SmartVocabularyApp() {
             const response = await fetchWithAuth(`${API_BASE}/admin/invite-codes/${inviteCodeId}`, {
                 method: 'DELETE'
             });
+            if (!sessionIsCurrent()) return;
 
             if (!response.ok) {
                 const data = await response.json().catch(() => ({}));
@@ -550,10 +719,11 @@ export default function SmartVocabularyApp() {
 
             await loadInviteCodes();
         } catch (error) {
+            if (!sessionIsCurrent()) return;
             console.error('删除邀请码失败', error);
             setInviteCodeError(error.message || '删除邀请码失败');
         } finally {
-            setInviteCodeMutatingId(null);
+            if (sessionIsCurrent()) setInviteCodeMutatingId(null);
         }
     };
 
@@ -584,6 +754,7 @@ export default function SmartVocabularyApp() {
     // 1. 增 (Create)
     const handleAddRecord = async (e) => {
         e.preventDefault();
+        if (!sessionIsCurrent()) return;
         if (!inputWord) return;
         
         const payload = {
@@ -594,20 +765,10 @@ export default function SmartVocabularyApp() {
             customMeaning: inputMeaning
         };
 
-        setSaveStatus('saving');
+        setActiveWriteCount(previous => previous + 1);
         try {
-            // 发送请求给后端，后端生成 ID 并返回完整对象
-            const res = await fetchWithAuth(`${API_BASE}/records`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            
-            if (!res.ok) throw new Error('保存失败');
-            const newRecord = await res.json();
-
-            // 更新本地状态
-            setRecords(p => [...p, newRecord]);
+            const newRecord = await recordSyncRef.current.createRecord(payload);
+            if (!sessionIsCurrent()) return;
             setLatestLookupRecordId(newRecord.id);
             setLookupPanelState(previous => ({
                 ...previous,
@@ -616,96 +777,92 @@ export default function SmartVocabularyApp() {
             
             // 清空输入
             setInputWord(''); setInputSentence(''); setInputMeaning('');
-            setSaveStatus('saved');
-
             void requestDictionaryForRecord(newRecord);
             if (hasAiConfig(settings)) {
                 void callAIAnalysis(newRecord, { silent: true, updateLookupPanel: true });
             }
         } catch (err) {
+            if (!sessionIsCurrent()) return;
             console.error(err);
-            setSaveStatus('error');
-            alert("添加失败，请检查网络");
+            setDirectWriteError('添加结果未确认，请核对服务器记录。');
+            alert("添加结果未确认，请先刷新核对再重试，避免重复添加");
+        } finally {
+            if (sessionIsCurrent()) setActiveWriteCount(previous => previous - 1);
         }
     };
 
     // 2. 改 (Update)
     const updateRecord = async (updatedRecord) => {
-        // 乐观更新
-        setRecords(prev => prev.map(r => r.id === updatedRecord.id ? updatedRecord : r));
-        setReviewQueue(prev => prev.map(r => r.id === updatedRecord.id ? updatedRecord : r));
-        if (modalRecord && modalRecord.id === updatedRecord.id) {
-            setModalRecord(updatedRecord);
-        }
-
-        // 后台静默发送请求
+        if (!sessionIsCurrent()) return false;
+        const sync = recordSyncRef.current;
+        if (!sync) return false;
         try {
-            await fetchWithAuth(`${API_BASE}/records/${updatedRecord.id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updatedRecord)
-            });
+            const acceptedRecord = await sync.enqueueUpdate(updatedRecord);
+            if (!sessionIsCurrent()) return false;
+            setActionError('');
+            setReviewQueue(prev => prev.map(r => r.id === acceptedRecord.id ? acceptedRecord : r));
+            if (modalRecord && modalRecord.id === acceptedRecord.id) setModalRecord(acceptedRecord);
+            return acceptedRecord;
         } catch (err) {
+            if (!sessionIsCurrent()) return false;
             console.error("同步失败", err);
-            setSaveStatus('error');
+            setActionError(err.message);
+            return false;
         }
     };
 
     // 3. 删 (Delete)
     const handleDelete = async (id) => {
+        if (!sessionIsCurrent()) return;
         if (!confirm("删除?")) return;
 
-        const originalRecords = [...records];
-        setRecords(p => p.filter(r => r.id !== id));
-        if (latestLookupRecordId === id) {
-            setLatestLookupRecordId(null);
-        }
-
+        setActiveWriteCount(previous => previous + 1);
         try {
-            await fetchWithAuth(`${API_BASE}/records/${id}`, { method: 'DELETE' });
-        } catch {
-            alert("删除失败，可能是网络原因");
-            setRecords(originalRecords); // 回滚
+            await recordSyncRef.current.deleteRecord(id);
+            if (!sessionIsCurrent()) return;
+            if (latestLookupRecordId === id) setLatestLookupRecordId(null);
+        } catch (error) {
+            if (!sessionIsCurrent()) return;
+            setDirectWriteError(`删除结果未确认：${error.message}`);
+            alert(`删除未确认：${error.message}`);
+        } finally {
+            if (sessionIsCurrent()) setActiveWriteCount(previous => previous - 1);
         }
     };
 
     // 4. 批量添加 (Batch Add)
     const handleBatchAddRecords = async (newItems, creationSource = 'batch') => {
-        setSaveStatus('saving');
+        if (!sessionIsCurrent()) return;
+        setActiveWriteCount(previous => previous + 1);
         const today = getCalendarDateString();
-        
-        // 并发发送请求
-        const promises = newItems.map(item => {
-            const payload = {
+
+        try {
+            const sync = recordSyncRef.current;
+            if (!sync) throw new Error('当前账户尚未准备好');
+            const promises = newItems.map(item => sync.createRecord({
                 creationSource,
                 date: today,
                 word: item.word,
                 sentence: item.sentence || '',
-                customMeaning: item.meaning || '',
-            };
-            return fetchWithAuth(`${API_BASE}/records`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            }).then(async res => {
-                if (!res.ok) {
-                    const data = await res.json().catch(() => ({}));
-                    throw new Error(data?.error || '保存失败');
-                }
-                return res.json();
-            });
-        });
-
-        try {
-            const createdRecords = await Promise.all(promises);
-            setRecords(p => [...p, ...createdRecords]);
-            alert(`已成功添加 ${createdRecords.length} 个单词到列表！`);
-            setView('list');
-            setSaveStatus('saved');
-        } catch (err) {
-            console.error(err);
-            setSaveStatus('error');
-            alert("部分单词添加失败，请检查网络");
+                customMeaning: item.meaning || ''
+            }));
+            const results = await Promise.allSettled(promises);
+            if (!sessionIsCurrent()) return;
+            const savedCount = results.filter(result => result.status === 'fulfilled').length;
+            const failedCount = results.length - savedCount;
+            if (savedCount > 0) setView('list');
+            if (failedCount > 0) {
+                setDirectWriteError(`${failedCount} 条添加结果未确认`);
+                alert(`已确认保存 ${savedCount} 条；另有 ${failedCount} 条结果未确认，请核对列表后再重试。`);
+            } else {
+                alert(`已成功添加 ${savedCount} 个单词到列表！`);
+            }
+        } catch (error) {
+            if (!sessionIsCurrent()) return;
+            setDirectWriteError(error.message);
+            alert(error.message);
+        } finally {
+            if (sessionIsCurrent()) setActiveWriteCount(previous => previous - 1);
         }
     };
 
@@ -779,92 +936,86 @@ export default function SmartVocabularyApp() {
     const currentReviewItem = reviewQueue[0];
     const currentQuestionType = currentReviewItem ? getQuestionType(currentReviewItem) : 'C';
 
-    const handleReviewResult = (quality) => {
-        if (!currentReviewItem) return;
-        const record = currentReviewItem;
+    const handleReviewResult = async (quality) => {
+        if (!currentReviewItem || reviewActionPendingRef.current) return;
+        reviewActionPendingRef.current = true;
+        const record = recordsRef.current.find(item => item.id === currentReviewItem.id) || currentReviewItem;
         const isReinforce = record.needsReadingPractice;
         const today = getTodayDateString();
+        try {
+            const performanceRecord = applyReviewPerformance(record, quality, today);
+            let updatedRecord;
+            let queueAction = 'remove';
 
-        setReviewHistory(prev => [
-            ...prev,
-            {
-                queueTab: reviewTab,
-                queue: reviewQueue.map(item => JSON.parse(JSON.stringify(item))),
-                record: JSON.parse(JSON.stringify(record))
-            }
-        ]);
-
-        const performanceRecord = applyReviewPerformance(record, quality, today);
-
-        if (quality === 'forget' || quality === 'hard') {
-            const updatedRecord = startSameDayReview(performanceRecord, quality, today);
-            updateRecord(updatedRecord);
-
-            if (updatedRecord.isFocusReview && reviewTab !== 'focus') {
-                setReviewQueue(prev => prev.slice(1).filter(item => item.id !== updatedRecord.id));
+            if (quality === 'forget' || quality === 'hard') {
+                updatedRecord = startSameDayReview(performanceRecord, quality, today);
+                queueAction = updatedRecord.isFocusReview && reviewTab !== 'focus' ? 'remove' : 'reinsert';
+            } else if (isSameDayReviewActive(performanceRecord, today)) {
+                const { completed, record: progressedRecord } = progressSameDayReview(performanceRecord, today);
+                updatedRecord = completed ? maybeExitFocusReview(progressedRecord) : progressedRecord;
+                queueAction = completed ? 'remove' : 'reinsert';
             } else {
-                setReviewQueue(prev => reinsertReviewItem(prev, updatedRecord));
+                const interval = getNextReviewInterval(record.reviewStage, isReinforce);
+                updatedRecord = interval === null
+                    ? { ...clearFocusReviewFields(clearSameDayReviewFields(performanceRecord)), mastered: true, masteredDate: today }
+                    : maybeExitFocusReview({
+                        ...clearSameDayReviewFields(performanceRecord),
+                        reviewStage: record.reviewStage + 1,
+                        nextReviewDate: getFutureDateString(interval)
+                    });
             }
+
+            const acceptedRecord = await updateRecord(updatedRecord);
+            if (!acceptedRecord) return;
+            setReviewHistory(prev => [
+                ...prev,
+                {
+                    queueTab: reviewTab,
+                    queue: reviewQueue.map(item => JSON.parse(JSON.stringify(item))),
+                    record: JSON.parse(JSON.stringify(record))
+                }
+            ]);
+            setReviewQueue(prev => queueAction === 'reinsert'
+                ? reinsertReviewItem(prev, acceptedRecord)
+                : prev.slice(1).filter(item => item.id !== acceptedRecord.id));
             setIsFlipped(false);
-            return;
+        } finally {
+            reviewActionPendingRef.current = false;
         }
-
-        if (isSameDayReviewActive(performanceRecord, today)) {
-            const { completed, record: progressedRecord } = progressSameDayReview(performanceRecord, today);
-            const updatedRecord = completed ? maybeExitFocusReview(progressedRecord) : progressedRecord;
-            updateRecord(updatedRecord);
-
-            if (completed) {
-                setReviewQueue(prev => prev.slice(1).filter(item => item.id !== updatedRecord.id));
-            } else {
-                setReviewQueue(prev => reinsertReviewItem(prev, updatedRecord));
-            }
-            setIsFlipped(false);
-            return;
-        }
-
-        const interval = getNextReviewInterval(record.reviewStage, isReinforce);
-        if (interval === null) {
-            handleMaster(record.id);
-            return;
-        }
-        const newStage = record.reviewStage + 1;
-        const nextDateStr = getFutureDateString(interval);
-
-        const updatedRecord = maybeExitFocusReview({
-            ...clearSameDayReviewFields(performanceRecord),
-            reviewStage: newStage,
-            nextReviewDate: nextDateStr
-        });
-        updateRecord(updatedRecord);
-        setReviewQueue(prev => prev.slice(1));
-        setIsFlipped(false);
     };
 
-    const handleUndoReview = () => {
-        if (reviewHistory.length === 0) return;
+    const handleUndoReview = async () => {
+        if (reviewHistory.length === 0 || reviewActionPendingRef.current) return;
+        reviewActionPendingRef.current = true;
         const lastEntry = reviewHistory[reviewHistory.length - 1];
-        setReviewTab(lastEntry.queueTab);
-        updateRecord(lastEntry.record);
-        setReviewQueue(lastEntry.queue);
-        setReviewHistory(prev => prev.slice(0, -1));
-        setIsFlipped(false);
+        try {
+            const latest = recordsRef.current.find(item => item.id === lastEntry.record.id);
+            if (!latest) return;
+            const acceptedRecord = await updateRecord(restoreReviewProgress(latest, lastEntry.record));
+            if (!acceptedRecord) return;
+            setReviewTab(lastEntry.queueTab);
+            setReviewQueue(lastEntry.queue.map(item => item.id === acceptedRecord.id ? acceptedRecord : item));
+            setReviewHistory(prev => prev.slice(0, -1));
+            setIsFlipped(false);
+        } finally {
+            reviewActionPendingRef.current = false;
+        }
     };
     reviewResultHandlerRef.current = handleReviewResult;
 
-    const handleMaster = (id) => {
-        const r = records.find(r => r.id === id);
-        updateRecord({
+    const handleMaster = async (id) => {
+        const r = recordsRef.current.find(record => record.id === id);
+        if (!r || !await updateRecord({
             ...clearFocusReviewFields(clearSameDayReviewFields(r)),
             mastered: true,
             masteredDate: getTodayDateString()
-        });
+        })) return;
         setReviewQueue(prev => prev.filter(item => item.id !== id));
         setIsFlipped(false);
     };
 
     const handleResurrect = (id) => {
-        const r = records.find(r => r.id === id);
+        const r = recordsRef.current.find(record => record.id === id);
         updateRecord({
             ...clearFocusReviewFields(clearSameDayReviewFields(r)),
             mastered: false,
@@ -875,7 +1026,7 @@ export default function SmartVocabularyApp() {
     };
 
     const toggleReadingPractice = (id) => {
-        const r = records.find(r => r.id === id);
+        const r = recordsRef.current.find(record => record.id === id);
         updateRecord({
             ...clearSameDayReviewFields(r),
             needsReadingPractice: !r.needsReadingPractice,
@@ -893,6 +1044,7 @@ export default function SmartVocabularyApp() {
     };
 
     const requestDictionaryForRecord = async (record) => {
+        if (!sessionIsCurrent()) return;
         updateLookupState(record.id, {
             dictionaryError: '',
             dictionaryStatus: 'loading'
@@ -903,6 +1055,7 @@ export default function SmartVocabularyApp() {
                 sentence: record.sentence,
                 word: record.word
             });
+            if (!sessionIsCurrent()) return;
 
             updateLookupState(record.id, {
                 dictionaryError: '',
@@ -927,6 +1080,7 @@ export default function SmartVocabularyApp() {
                 }
             }
         } catch (error) {
+            if (!sessionIsCurrent()) return;
             console.error(error);
             updateLookupState(record.id, {
                 dictionaryError: error.message || '词典请求失败',
@@ -936,6 +1090,7 @@ export default function SmartVocabularyApp() {
     };
 
     const callAIAnalysis = async (record, options = {}) => {
+        if (!sessionIsCurrent()) return;
         const { silent = false, updateLookupPanel = false } = options;
         if (!hasAiConfig(settings)) {
             if (updateLookupPanel) {
@@ -959,6 +1114,7 @@ export default function SmartVocabularyApp() {
         const promptText = `我正在学习单词。单词：${record.word}。${record.sentence ? '句子：' + record.sentence : '请根据单词造句并解析'}。${record.customMeaning ? '用户备注含义：' + record.customMeaning : ''}。请严格按照以下 Markdown 格式解析，并保持编号顺序不变：1. **常见解释**: (用中文写一个最常见、最口语、10字以内的简短解释) 2. **语言识别**: (英语/日语) 3. **标音**: (日语提供假名，英语提供音标) 4. **确切含义**: (解释更准确的含义) 5. **语法分析**: (简要说明) 6. **固定搭配**: (列出3个) 请保持简洁。`;
         try {
             const aiContent = await requestAiPrompt(promptText);
+            if (!sessionIsCurrent()) return;
             const reading = extractReadingFromAnalysis(aiContent);
             const currentRecord = recordsRef.current.find(item => item.id === record.id);
 
@@ -978,6 +1134,7 @@ export default function SmartVocabularyApp() {
                 });
             }
         } catch (e) {
+            if (!sessionIsCurrent()) return;
             console.error(e);
             if (updateLookupPanel) {
                 updateLookupState(record.id, {
@@ -990,6 +1147,7 @@ export default function SmartVocabularyApp() {
     };
 
     const handleBatchAnalyze = async () => {
+        if (dataStatus !== 'success' && dataStatus !== 'cached') return alert('请等待完整单词数据加载后再批量解析。');
         if (!hasAiConfig(settings)) return setShowSettings(true);
         const pending = records.filter(r => !r.aiAnalysis);
         if (pending.length === 0) return alert("没有需要解析的单词");
@@ -1052,7 +1210,14 @@ export default function SmartVocabularyApp() {
 
     const playTTS = (text) => { if ('speechSynthesis' in window) { const u = new SpeechSynthesisUtterance(text); if (text.match(/[\u3040-\u309F\u30A0-\u30FF]/)) u.lang = 'ja-JP'; window.speechSynthesis.speak(u); } };
 
-    const handleImportClick = () => fileInputRef.current.click();
+    const handleImportClick = async () => {
+        try {
+            await loadXlsxLibrary();
+            fileInputRef.current?.click();
+        } catch (error) {
+            alert(error.message);
+        }
+    };
     const handleFileChange = (e) => {
         const file = e.target.files[0]; if (!file || !window.XLSX) return;
         const reader = new FileReader();
@@ -1143,8 +1308,8 @@ export default function SmartVocabularyApp() {
 
     const cleanMarkdownForExcel = (text) => text ? text.replace(/\*\*/g, '').replace(/^(\d+\.|-)\s/gm, '• ').replace(/\n\n/g, '\n') : '';
 
-    const exportFrequencyExcel = () => {
-        if (!window.XLSX) return alert("Excel 组件未加载");
+    const exportFrequencyExcel = async () => {
+        try { await loadXlsxLibrary(); } catch (error) { return alert(error.message); }
         const dataToExport = frequencyData.map(item => ({ "单词": item.word, "出现次数": item.count }));
         const ws = window.XLSX.utils.json_to_sheet(dataToExport);
         const wb = window.XLSX.utils.book_new();
@@ -1152,8 +1317,8 @@ export default function SmartVocabularyApp() {
         window.XLSX.writeFile(wb, `词频统计_${new Date().toISOString().slice(0, 10)}.xlsx`);
     };
 
-    const exportDateArchiveExcel = () => {
-        if (!window.XLSX) return alert("Excel 组件未加载");
+    const exportDateArchiveExcel = async () => {
+        try { await loadXlsxLibrary(); } catch (error) { return alert(error.message); }
         const rows = [];
         dateGroupedData.forEach(group => {
             rows.push([group.date]);
@@ -1320,19 +1485,48 @@ export default function SmartVocabularyApp() {
                 onUpdateApiKeyDraft={updateApiKeyDraft}
                 onUpdateInviteCodeDraft={updateInviteCodeDraft}
                 onUpdateSetting={updateSetting}
+                settingsStatus={settingsStatus}
+                settingsError={settingsError}
+                settingsSaveStatus={settingsSaveStatus}
+                settingsSaveError={settingsSaveError}
+                onRetrySettings={retrySettings}
                 provider={provider}
-                recordsCount={records.length}
+                recordsCount={recordCount}
+                dataStatus={dataStatus}
+                pendingCount={pendingCount}
+                saveError={effectiveSaveError}
+                activeWriteCount={activeWriteCount}
                 reviewShortcutEasy={settings.reviewShortcutEasy}
                 reviewShortcutForget={settings.reviewShortcutForget}
                 reviewShortcutHard={settings.reviewShortcutHard}
                 reviewQueueLength={mainDueRecords.length + focusDueRecords.length}
-                saveStatus={saveStatus}
+                saveStatus={effectiveSaveStatus}
                 showSettings={showSettings}
                 showReviewSentence={settings.showReviewSentence}
                 view={view}
             />
 
             <main className="max-w-5xl mx-auto p-4 md:p-6 pb-20">
+                {(dataStatus === 'cached' || dataStatus === 'partial' || dataStatus === 'error' || effectiveSaveStatus === 'error' || effectiveSaveStatus === 'conflict' || actionError) && (
+                    <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900" role="status">
+                        <div>{dataStatus === 'cached' ? '正在使用本地数据，服务器核对尚未完成。' : dataStatus === 'partial' ? `复习数据已就绪，完整单词列表仍在加载。${dataError ? `加载失败：${dataError}` : ''}` : dataStatus === 'error' ? `单词加载失败：${dataError}` : ''}</div>
+                        {effectiveSaveError && <div>{effectiveSaveError}</div>}
+                        {actionError && <div>{actionError} <button type="button" onClick={() => setActionError('')} className="underline">关闭提示</button></div>}
+                        {directWriteError && (
+                            <button type="button" onClick={() => setDirectWriteError('')} className="mt-1 underline">已核对服务器记录，关闭提示</button>
+                        )}
+                        {pendingCount > 0 && <div>还有 {pendingCount} 次操作未获服务器确认；显示「已保存」前请勿清除浏览器数据。</div>}
+                        <div className="mt-2 flex flex-wrap gap-2">
+                            <button type="button" onClick={() => recordSyncRef.current?.retry()} className="rounded bg-amber-200 px-3 py-1">重新连接</button>
+                            {conflictId && (
+                                <>
+                                    <button type="button" onClick={() => recordSyncRef.current?.resolveConflict(true)} className="rounded bg-amber-200 px-3 py-1">用本地进度覆盖服务器</button>
+                                    <button type="button" onClick={() => recordSyncRef.current?.resolveConflict(false)} className="rounded border border-amber-400 px-3 py-1">放弃本地进度，使用服务器</button>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                )}
 
                 {view === 'writing' && (
                     <WritingPolisher 
@@ -1367,11 +1561,16 @@ export default function SmartVocabularyApp() {
                         onInputWordChange={setInputWord}
                         onSubmit={handleAddRecord}
                         recentManualEntries={recentManualEntries}
-                        saveStatus={saveStatus}
+                        saveStatus={inputSaveStatus}
                     />
                 )}
 
-                {view === 'review' && (
+                {view === 'review' && !isDataLoaded && (
+                    <div className="rounded-xl bg-white p-8 text-center" role="status">
+                        {dataStatus === 'error' ? '单词加载失败，请重新连接后再复习。' : '正在加载单词与复习队列…'}
+                    </div>
+                )}
+                {view === 'review' && isDataLoaded && (
                     <ReviewView
                         currentQuestionType={currentQuestionType}
                         currentReviewItem={currentReviewItem}
@@ -1381,6 +1580,7 @@ export default function SmartVocabularyApp() {
                         handleReviewResult={handleReviewResult}
                         handleUndoReview={handleUndoReview}
                         isFlipped={isFlipped}
+                        isPartial={dataStatus === 'partial'}
                         mainQueueCount={mainDueRecords.length}
                         onResurrect={handleResurrect}
                         playTTS={playTTS}
@@ -1395,7 +1595,13 @@ export default function SmartVocabularyApp() {
                     />
                 )}
 
-                {view === 'list' && (
+                {['list', 'frequency', 'date'].includes(view) && (!isDataLoaded || dataStatus === 'partial') && (
+                    <div className="rounded-xl bg-white p-8 text-center" role="status">
+                        {dataStatus === 'error' ? '完整单词列表加载失败，请重新连接。' : '完整单词列表加载完成后即可查看此页面。'}
+                    </div>
+                )}
+
+                {view === 'list' && isDataLoaded && dataStatus !== 'partial' && (
                     <ListView
                         filteredRecords={listViewRecords}
                         listFilterDate={listFilterDate}
@@ -1410,7 +1616,7 @@ export default function SmartVocabularyApp() {
                     />
                 )}
 
-                {view === 'frequency' && (
+                {view === 'frequency' && isDataLoaded && dataStatus !== 'partial' && (
                     <FrequencyView
                         filterLang={filterLang}
                         frequencyData={frequencyData}
@@ -1420,7 +1626,7 @@ export default function SmartVocabularyApp() {
                     />
                 )}
 
-                {view === 'date' && (
+                {view === 'date' && isDataLoaded && dataStatus !== 'partial' && (
                     <DateArchiveView
                         dateGroupedData={dateGroupedData}
                         filterLang={filterLang}
@@ -1440,7 +1646,7 @@ export default function SmartVocabularyApp() {
                         <div className="p-6 border-b flex justify-between bg-slate-50/50"><div><h3 className="text-3xl font-extrabold text-slate-800">{modalRecord.word}</h3></div><button onClick={() => setModalRecord(null)}><X className="w-6 h-6 text-slate-400" /></button></div>
                         <div className="p-6 overflow-y-auto custom-scrollbar">
                             <div className="bg-slate-50 p-4 rounded-xl border mb-6 relative"><span className="absolute top-2 left-2 text-4xl text-indigo-100 font-serif leading-none">“</span><p className="text-lg font-serif text-slate-700 relative z-10 px-4">{modalRecord.sentence || "暂无例句"}</p></div>
-                            <MeaningSection record={modalRecord} onUpdate={updateRecord} />
+                            <MeaningSection key={`${modalRecord.id}:${modalRecord.revision}:${modalRecord.clientMutationId || ''}`} record={modalRecord} onUpdate={updateRecord} />
                             <div className="mt-6 flex justify-end">
                                 {!modalRecord.aiAnalysis && (
                                     <button onClick={() => callAIAnalysis(modalRecord)} className="text-sm text-indigo-600 border border-indigo-200 px-3 py-1.5 rounded hover:bg-indigo-50 flex items-center gap-1"><Sparkles className="w-3 h-3" /> 生成 AI 解析</button>

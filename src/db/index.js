@@ -114,6 +114,8 @@ async function initializeDatabase() {
             mastered INTEGER DEFAULT 0,
             mastered_date TEXT,
             needs_reading_practice INTEGER DEFAULT 0,
+            revision INTEGER NOT NULL DEFAULT 0,
+            last_mutation_id TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users (id)
         );
@@ -142,6 +144,8 @@ async function initializeDatabase() {
     await ensureColumn('records', 'is_focus_review', 'INTEGER DEFAULT 0');
     await ensureColumn('records', 'focus_recovery_streak', 'INTEGER DEFAULT 0');
     await ensureColumn('records', 'focus_last_review_date', 'TEXT');
+    await ensureColumn('records', 'revision', 'INTEGER NOT NULL DEFAULT 0');
+    await ensureColumn('records', 'last_mutation_id', 'TEXT');
     await ensureColumn('invite_codes', 'used_count', 'INTEGER DEFAULT 0');
     await ensureColumn('invite_codes', 'is_active', 'INTEGER DEFAULT 1');
     await ensureColumn('invite_codes', 'created_by_user_id', 'INTEGER');

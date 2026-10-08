@@ -93,6 +93,7 @@ export default function ReviewView({
     handleReviewResult,
     handleUndoReview,
     isFlipped,
+    isPartial,
     mainQueueCount,
     onResurrect,
     playTTS,
@@ -125,7 +126,9 @@ export default function ReviewView({
                     </button>
                     <button
                         onClick={() => setReviewTab('mastered')}
-                        className={`px-6 py-2 rounded-full text-sm font-bold transition ${reviewTab === 'mastered' ? 'bg-white text-amber-600 shadow' : 'text-slate-500'}`}
+                        disabled={isPartial}
+                        title={isPartial ? '完整数据加载后可查看荣誉殿堂' : undefined}
+                        className={`px-6 py-2 rounded-full text-sm font-bold transition ${reviewTab === 'mastered' ? 'bg-white text-amber-600 shadow' : 'text-slate-500'} ${isPartial ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                         荣誉殿堂 ({masteredCount})
                     </button>
@@ -236,7 +239,7 @@ export default function ReviewView({
                                             sentence={currentReviewItem.sentence}
                                             scrollable={false}
                                         />
-                                        <MeaningSection record={currentReviewItem} onUpdate={updateRecord} />
+                                        <MeaningSection key={`${currentReviewItem.id}:${currentReviewItem.revision}:${currentReviewItem.clientMutationId || ''}`} record={currentReviewItem} onUpdate={updateRecord} />
                                     </div>
                                 </div>
                             </div>

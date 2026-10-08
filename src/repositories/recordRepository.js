@@ -1,6 +1,7 @@
 import {
     all,
     finalizeStatement,
+    get,
     prepare,
     run,
     runStatement,
@@ -9,6 +10,20 @@ import {
 
 export async function findRecordsByUserId(userId) {
     return all('SELECT * FROM records WHERE user_id = ? ORDER BY id ASC', [userId]);
+}
+
+export async function findReviewBootstrapByUserId(userId, today) {
+    const [countRow, rows] = await Promise.all([
+        get('SELECT COUNT(*) AS count FROM records WHERE user_id = ?', [userId]),
+        all(
+            `SELECT * FROM records
+             WHERE user_id = ? AND COALESCE(mastered, 0) = 0
+               AND (is_focus_review = 1 OR next_review_date IS NULL OR next_review_date <= ?)
+             ORDER BY id ASC`,
+            [userId, today]
+        )
+    ]);
+    return { count: countRow.count, rows };
 }
 
 export async function insertRecord(record) {
@@ -68,8 +83,16 @@ export async function insertRecord(record) {
     );
 }
 
-export async function updateRecordById({ id, userId, record }) {
-    return run(
+export async function updateRecordById({ id, userId, record, revision, mutationId }) {
+    const existing = await get(
+        'SELECT revision, last_mutation_id FROM records WHERE id = ? AND user_id = ?',
+        [id, userId]
+    );
+    if (existing?.last_mutation_id === mutationId) {
+        return { changes: 1, revision: existing.revision };
+    }
+
+    const result = await run(
         `UPDATE records SET
             review_stage = ?,
             next_review_date = ?,
@@ -87,8 +110,10 @@ export async function updateRecordById({ id, userId, record }) {
             dictionary_meaning = ?,
             ai_analysis = ?,
             reading = ?,
-            needs_reading_practice = ?
-         WHERE id = ? AND user_id = ?`,
+            needs_reading_practice = ?,
+            revision = revision + 1,
+            last_mutation_id = ?
+         WHERE id = ? AND user_id = ? AND revision = ?`,
         [
             record.reviewStage,
             record.nextReviewDate,
@@ -107,10 +132,24 @@ export async function updateRecordById({ id, userId, record }) {
             record.aiAnalysis,
             record.reading,
             record.needsReadingPractice,
+            mutationId,
             id,
-            userId
+            userId,
+            revision
         ]
     );
+    if (result.changes > 0) {
+        return { changes: 1, revision: revision + 1 };
+    }
+
+    // A retry may arrive after the first attempt committed but before its response arrived.
+    const latest = await get(
+        'SELECT revision, last_mutation_id FROM records WHERE id = ? AND user_id = ?',
+        [id, userId]
+    );
+    return latest?.last_mutation_id === mutationId
+        ? { changes: 1, revision: latest.revision }
+        : { changes: 0, conflict: Boolean(latest), revision: latest?.revision };
 }
 
 export async function deleteRecordById({ id, userId }) {

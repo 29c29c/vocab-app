@@ -17,14 +17,17 @@ export async function updateRecord(userId, recordId, payload) {
     const result = await recordRepository.updateRecordById({
         id: recordId,
         record: dbRecord,
+        revision: payload.revision,
+        mutationId: payload.mutationId,
         userId
     });
 
     if (result.changes === 0) {
-        throw new AppError(404, '记录不存在或无权修改');
+        throw new AppError(result.conflict ? 409 : 404,
+            result.conflict ? '记录已在其他设备更新，请先核对进度' : '记录不存在或无权修改');
     }
 
-    return { success: true };
+    return { success: true, revision: result.revision };
 }
 
 export async function deleteRecord(userId, recordId) {

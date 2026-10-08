@@ -9,6 +9,7 @@
     "dev": "node ./scripts/frontend-command.mjs dev",
     "build": "node ./scripts/frontend-command.mjs build",
     "lint": "eslint .",
+    "test": "node --test",
     "preview": "node ./scripts/frontend-command.mjs preview"
   },
   "dependencies": {

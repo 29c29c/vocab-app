@@ -24,12 +24,17 @@ export default function SettingsPanel({
     onCreateInviteCode,
     onDeleteInviteCode,
     onRefreshInviteCodes,
+    onRetrySettings,
     onSaveApiKey,
     onToggleInviteCode,
     onUpdateInviteCodeDraft,
     onUpdateApiKeyDraft,
     onUpdateSetting,
     provider,
+    settingsError,
+    settingsSaveError,
+    settingsSaveStatus,
+    settingsStatus,
     reviewShortcutEasy,
     reviewShortcutForget,
     reviewShortcutHard,
@@ -65,6 +70,24 @@ export default function SettingsPanel({
 
     return (
         <div className="max-w-5xl mx-auto mt-4 p-4 bg-black/20 rounded-xl backdrop-blur border border-white/10 animate-in slide-in-from-top-2 space-y-5">
+            {settingsStatus === 'loading' && (
+                <div className="text-sm text-indigo-100 bg-white/5 rounded-lg px-3 py-2" role="status">设置正在加载，复习可以继续使用。</div>
+            )}
+            {settingsStatus === 'error' && (
+                <div className="text-sm text-amber-100 bg-amber-500/10 rounded-lg px-3 py-2 flex items-center justify-between gap-3" role="alert">
+                    <span>设置加载失败：{settingsError}。当前使用本账户缓存或默认设置。</span>
+                    <button type="button" onClick={onRetrySettings} className="shrink-0 rounded bg-amber-500/30 px-3 py-1">重试</button>
+                </div>
+            )}
+            {settingsSaveStatus === 'saving' && (
+                <div className="text-sm text-indigo-100 bg-white/5 rounded-lg px-3 py-2" role="status">设置保存中…</div>
+            )}
+            {settingsSaveStatus === 'error' && (
+                <div className="text-sm text-amber-100 bg-amber-500/10 rounded-lg px-3 py-2 flex items-center justify-between gap-3" role="alert">
+                    <span>设置尚未保存：{settingsSaveError}</span>
+                    <button type="button" onClick={onRetrySettings} className="shrink-0 rounded bg-amber-500/30 px-3 py-1">重试</button>
+                </div>
+            )}
             <div>
                 <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
                     <KeyRound className="w-4 h-4 text-yellow-300" /> AI 设置

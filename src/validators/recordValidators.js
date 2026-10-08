@@ -57,6 +57,8 @@ export function validateUpdateRecordPayload(body) {
         'mastered',
         'masteredDate',
         'needsReadingPractice',
+        'revision',
+        'mutationId',
         'nextReviewDate',
         'reading',
         'reviewStage',
@@ -66,6 +68,8 @@ export function validateUpdateRecordPayload(body) {
     ]);
 
     return {
+        revision: readInteger(input.revision, '记录版本', { max: 2147483647, min: 0 }),
+        mutationId: readRequiredString(input.mutationId, '操作 ID', { maxLength: 100 }),
         aiAnalysis: readOptionalString(input.aiAnalysis, 'AI 分析'),
         customMeaning: readOptionalString(input.customMeaning, '自定义释义'),
         dictionaryMeaning: readOptionalString(input.dictionaryMeaning, '词典释义'),
