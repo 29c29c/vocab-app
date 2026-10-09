@@ -5,7 +5,7 @@ import { validateBody } from '../middleware/validate.js';
 import * as authService from '../services/authService.js';
 import { validateLoginPayload, validateRegisterPayload } from '../validators/authValidators.js';
 
-export function createAuthRouter({ config, jsonParsers, loginRateLimiter, registerRateLimiter }) {
+export function createAuthRouter({ authenticateToken, config, jsonParsers, loginRateLimiter, registerRateLimiter }) {
     const router = Router();
 
     router.post(
@@ -28,6 +28,14 @@ export function createAuthRouter({ config, jsonParsers, loginRateLimiter, regist
             const result = await authService.loginUser(req.validatedBody, config);
             res.json(result);
         }, '登录失败')
+    );
+
+    router.post(
+        '/logout',
+        authenticateToken,
+        asyncHandler(async (req, res) => {
+            res.json(await authService.logoutUser(req.user));
+        }, '退出登录失败')
     );
 
     return router;

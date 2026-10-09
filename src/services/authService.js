@@ -1,8 +1,10 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { randomUUID } from 'node:crypto';
 
 import * as inviteCodeRepository from '../repositories/inviteCodeRepository.js';
 import * as userRepository from '../repositories/userRepository.js';
+import * as revokedTokenRepository from '../repositories/revokedTokenRepository.js';
 import { isAdminUsername } from '../utils/admin.js';
 import { AppError } from '../utils/http.js';
 
@@ -44,6 +46,14 @@ export async function loginUser({ password, username }, config) {
         throw new AppError(400, '密码错误');
     }
 
-    const token = jwt.sign({ id: user.id, username: user.username }, config.jwtSecret);
+    const token = jwt.sign({ id: user.id, username: user.username }, config.jwtSecret, {
+        expiresIn: '7d',
+        jwtid: randomUUID()
+    });
     return { success: true, token, username: user.username };
+}
+
+export async function logoutUser({ jti, exp }) {
+    await revokedTokenRepository.revokeToken(jti, exp);
+    return { success: true };
 }

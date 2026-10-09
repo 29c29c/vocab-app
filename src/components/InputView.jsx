@@ -276,7 +276,7 @@ export default function InputView({
                         className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-xl font-bold text-lg shadow-lg shadow-indigo-200 transition transform active:scale-95 disabled:opacity-50 flex justify-center items-center gap-2"
                     >
                         {saveStatus === 'saving' ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-                        {saveStatus === 'saving' ? '正在保存...' : '保存并开始记忆'}
+                        {saveStatus === 'saving' ? '正在保存...' : '保存单词'}
                     </button>
                 </form>
             </div>

@@ -5,22 +5,23 @@ import {
 } from '../mappers/recordMapper.js';
 import * as recordRepository from '../repositories/recordRepository.js';
 import { AppError } from '../utils/http.js';
+import { withRecordAccess } from './recordAccess.js';
 
 export async function createRecord(userId, payload) {
     const dbRecord = mapCreatePayloadToDbRecord(userId, payload);
-    const result = await recordRepository.insertRecord(dbRecord);
+    const result = await withRecordAccess(() => recordRepository.insertRecord(dbRecord));
     return mapInsertedRecordToApiRecord(result.lastID, dbRecord);
 }
 
 export async function updateRecord(userId, recordId, payload) {
     const dbRecord = mapUpdatePayloadToDbRecord(payload);
-    const result = await recordRepository.updateRecordById({
+    const result = await withRecordAccess(() => recordRepository.updateRecordById({
         id: recordId,
         record: dbRecord,
         revision: payload.revision,
         mutationId: payload.mutationId,
         userId
-    });
+    }));
 
     if (result.changes === 0) {
         throw new AppError(result.conflict ? 409 : 404,
@@ -31,7 +32,7 @@ export async function updateRecord(userId, recordId, payload) {
 }
 
 export async function deleteRecord(userId, recordId) {
-    const result = await recordRepository.deleteRecordById({ id: recordId, userId });
+    const result = await withRecordAccess(() => recordRepository.deleteRecordById({ id: recordId, userId }));
     if (result.changes === 0) {
         throw new AppError(404, '记录不存在或无权删除');
     }

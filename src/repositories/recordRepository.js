@@ -7,6 +7,8 @@ import {
     runStatement,
     withTransaction
 } from '../db/index.js';
+import { mapRecordRowToApiRecord } from '../mappers/recordMapper.js';
+import { AppError } from '../utils/http.js';
 
 export async function findRecordsByUserId(userId) {
     return all('SELECT * FROM records WHERE user_id = ? ORDER BY id ASC', [userId]);
@@ -156,8 +158,13 @@ export async function deleteRecordById({ id, userId }) {
     return run('DELETE FROM records WHERE id = ? AND user_id = ?', [id, userId]);
 }
 
-export async function replaceUserRecords(userId, records) {
-    return withTransaction(async () => {
+export async function replaceUserRecords(userId, records, expectedEtag, getDataEtag) {
+    return withTransaction(async transaction => {
+        const currentRows = await transaction.all('SELECT * FROM records WHERE user_id = ? ORDER BY id ASC', [userId]);
+        const currentEtag = getDataEtag(currentRows.map(mapRecordRowToApiRecord));
+        if (expectedEtag !== currentEtag) {
+            throw new AppError(409, '词库已变化，请重新获取数据后再导入');
+        }
         await run('DELETE FROM records WHERE user_id = ?', [userId]);
 
         const statement = prepare(

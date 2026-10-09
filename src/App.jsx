@@ -28,6 +28,7 @@ import {
 import { readSettingsCache, writeSettingsCache } from './client/settingsCache.js';
 import { RecordSync } from './client/recordSync.js';
 import { loadXlsxLibrary } from './client/xlsxLoader.js';
+import { escapeHtml } from './client/escapeHtml.js';
 import { getAiProviderPreset } from './shared/aiProviders.js';
 import AppHeader from './components/AppHeader.jsx';
 import ArticleAnalyzer from './components/ArticleAnalyzer.jsx';
@@ -115,6 +116,7 @@ function restoreReviewProgress(latest, snapshot) {
 export default function SmartVocabularyApp() {
     const [token, setToken] = useState(() => localStorage.getItem('auth_token'));
     const [currentUser, setCurrentUser] = useState(() => localStorage.getItem('auth_user'));
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
     const [authEpoch, setAuthEpoch] = useState(0);
     const authEpochRef = useRef(0);
     const accountId = useMemo(() => getAccountId(token), [token]);
@@ -289,6 +291,24 @@ export default function SmartVocabularyApp() {
         }
         return res;
     }, [authEpoch, handleLogout, token]);
+
+    const handleUserLogout = async () => {
+        if (isLoggingOut) return;
+        setIsLoggingOut(true);
+        try {
+            const response = await fetch(`${API_BASE}/logout`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+                signal: AbortSignal.timeout(5000)
+            });
+            if (!response.ok) throw new Error('服务端未确认注销');
+        } catch {
+            alert('当前设备已退出，但服务端未确认令牌注销；该令牌会在 7 天内自动过期。');
+        } finally {
+            handleLogout();
+            setIsLoggingOut(false);
+        }
+    };
 
     const requestAiPrompt = useCallback((prompt, responseFormat = 'text') => {
         return requestAiCompletion(fetchWithAuth, { prompt, responseFormat });
@@ -1369,13 +1389,14 @@ export default function SmartVocabularyApp() {
         questions = shuffleArray(questions);
         const printWindow = window.open('', '_blank');
         if (!printWindow) return alert("请允许弹窗");
+        printWindow.opener = null;
 
         const htmlContent = `
       <!DOCTYPE html>
       <html>
         <head>
           <meta charset="utf-8">
-          <title>听写测试 - ${selectedScope.title} - ${dictationDate}</title>
+          <title>听写测试 - ${escapeHtml(selectedScope.title)} - ${escapeHtml(dictationDate)}</title>
           <style>
             body { font-family: 'Segoe UI', sans-serif; padding: 40px; max-width: 210mm; margin: 0 auto; color: #333; }
             h1 { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; }
@@ -1412,25 +1433,25 @@ export default function SmartVocabularyApp() {
           </div>
           <div class="list-main">
               <h1>听写测试 <span style="font-size:0.6em; font-weight:normal; color:#666">(试卷)</span></h1>
-              <div class="meta">类型: ${selectedScope.title} | 日期: ${dictationDate} | 题数: ${questions.length}</div>
+              <div class="meta">类型: ${escapeHtml(selectedScope.title)} | 日期: ${escapeHtml(dictationDate)} | 题数: ${questions.length}</div>
               ${questions.map((q, i) => `
                 <div class="question-row">
                   <span class="q-num">${i + 1}.</span>
-                  <span class="q-content">${q.content}</span>
+                  <span class="q-content">${escapeHtml(q.content)}</span>
                   <span class="q-space"></span>
-                  <span class="q-answer">${q.answer}</span>
+                  <span class="q-answer">${escapeHtml(q.answer)}</span>
                 </div>
               `).join('')}
           </div>
           <div class="list-key">
               <h1>听写测试 <span style="font-size:0.6em; font-weight:normal; color:#666">(答案卷)</span></h1>
-              <div class="meta">核对区 | ${selectedScope.title}</div>
+              <div class="meta">核对区 | ${escapeHtml(selectedScope.title)}</div>
               ${questions.map((q, i) => `
                 <div class="question-row">
                   <span class="q-num">${i + 1}.</span>
-                  <span class="q-content">${q.content}</span>
+                  <span class="q-content">${escapeHtml(q.content)}</span>
                   <span class="q-space" style="visibility:hidden"></span>
-                  <span class="q-answer">${q.answer}</span>
+                  <span class="q-answer">${escapeHtml(q.answer)}</span>
                 </div>
               `).join('')}
           </div>
@@ -1465,7 +1486,7 @@ export default function SmartVocabularyApp() {
                 handleBatchAnalyze={handleBatchAnalyze}
                 handleFileChange={handleFileChange}
                 handleImportClick={handleImportClick}
-                handleLogout={handleLogout}
+                handleLogout={handleUserLogout}
                 inviteCodeDraft={inviteCodeDraft}
                 inviteCodeError={inviteCodeError}
                 inviteCodeMutatingId={inviteCodeMutatingId}
@@ -1475,6 +1496,7 @@ export default function SmartVocabularyApp() {
                 isCreatingInviteCode={isCreatingInviteCode}
                 isBatchAnalyzing={isBatchAnalyzing}
                 isSavingApiKey={isSavingApiKey}
+                isLoggingOut={isLoggingOut}
                 onCreateInviteCode={handleCreateInviteCode}
                 onDeleteInviteCode={handleDeleteInviteCode}
                 onRefreshInviteCodes={loadInviteCodes}

@@ -44,6 +44,7 @@ export function createDataRouter({ authenticateToken, jsonParsers }) {
         asyncHandler(async (req, res) => {
             const startedAt = performance.now();
             const records = await dataService.getUserData(req.user.id);
+            res.setHeader('ETag', dataService.getDataEtag(records));
             await sendDataResponse(req, res, records, performance.now() - startedAt);
         }, '获取数据失败')
     );
@@ -54,7 +55,7 @@ export function createDataRouter({ authenticateToken, jsonParsers }) {
         jsonParsers.large,
         validateBody(validateLegacyImportPayload),
         asyncHandler(async (req, res) => {
-            const result = await dataService.replaceUserData(req.user.id, req.validatedBody);
+            const result = await dataService.replaceUserData(req.user.id, req.validatedBody, req.get('If-Match'));
             res.json(result);
         }, '保存失败')
     );

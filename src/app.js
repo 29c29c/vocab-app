@@ -41,6 +41,7 @@ export function createApp({ config }) {
     });
 
     app.use('/api', createAuthRouter({
+        authenticateToken,
         config,
         jsonParsers,
         loginRateLimiter,

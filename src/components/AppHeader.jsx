@@ -33,6 +33,7 @@ export default function AppHeader({
     isCreatingInviteCode,
     isBatchAnalyzing,
     isSavingApiKey,
+    isLoggingOut,
     adminStatusChecked,
     onCreateInviteCode,
     onDeleteInviteCode,
@@ -165,8 +166,10 @@ export default function AppHeader({
                             </button>
                             <button
                                 onClick={handleLogout}
-                                className="p-2 rounded-full hover:bg-red-500/50 text-white/80 hover:text-white transition"
-                                title="退出登录"
+                                disabled={isLoggingOut}
+                                className="p-2 rounded-full hover:bg-red-500/50 text-white/80 hover:text-white transition disabled:opacity-50"
+                                title={isLoggingOut ? '正在退出登录' : '退出登录'}
+                                aria-label={isLoggingOut ? '正在退出登录' : '退出登录'}
                             >
                                 <LogOut className="w-5 h-5" />
                             </button>

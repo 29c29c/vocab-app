@@ -3,6 +3,8 @@ import { after, test } from 'node:test';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 
 const temporaryDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'vocab-record-test-'));
 process.env.DB_PATH = path.join(temporaryDirectory, 'records.sqlite');
@@ -13,6 +15,8 @@ const { databaseReady } = await import('../src/db/index.js');
 const users = await import('../src/repositories/userRepository.js');
 const records = await import('../src/services/recordsService.js');
 const data = await import('../src/services/dataService.js');
+const auth = await import('../src/services/authService.js');
+const { createAuthenticateToken } = await import('../src/middleware/authenticateToken.js');
 const { validateUpdateRecordPayload } = await import('../src/validators/recordValidators.js');
 
 await databaseReady;
@@ -66,4 +70,54 @@ test('review bootstrap returns only this account’s due records and an exact to
     assert.equal(bootstrap.count, 2);
     assert.deepEqual(bootstrap.records.map(record => record.id), [due.id]);
     assert.equal(bootstrap.records[0].sentence, 'due sentence');
+});
+
+test('legacy replacement requires a current snapshot and cannot erase the account with an empty array', async () => {
+    const user = await users.createUser({ username: 'legacy-import', passwordHash: 'unused' });
+    await records.createRecord(user.lastID, { date: '2026-10-08', word: 'original' });
+    const snapshot = await data.getUserData(user.lastID);
+    const etag = data.getDataEtag(snapshot);
+
+    await assert.rejects(data.replaceUserData(user.lastID, [{ word: 'new' }]), { statusCode: 428 });
+    await assert.rejects(data.replaceUserData(user.lastID, [], etag), { statusCode: 400 });
+    await records.createRecord(user.lastID, { date: '2026-10-09', word: 'newer' });
+    await assert.rejects(data.replaceUserData(user.lastID, [{ word: 'stale' }], etag), { statusCode: 409 });
+    assert.deepEqual((await data.getUserData(user.lastID)).map(record => record.word), ['original', 'newer']);
+
+    const freshEtag = data.getDataEtag(await data.getUserData(user.lastID));
+    await data.replaceUserData(user.lastID, [{ word: 'replacement', date: '2026-10-09' }], freshEtag);
+    assert.deepEqual((await data.getUserData(user.lastID)).map(record => record.word), ['replacement']);
+
+    const racingEtag = data.getDataEtag(await data.getUserData(user.lastID));
+    const createPromise = records.createRecord(user.lastID, { date: '2026-10-09', word: 'concurrent' });
+    const replacePromise = data.replaceUserData(user.lastID, [{ word: 'stale-again' }], racingEtag);
+    await createPromise;
+    await assert.rejects(replacePromise, { statusCode: 409 });
+    assert.deepEqual((await data.getUserData(user.lastID)).map(record => record.word), ['replacement', 'concurrent']);
+});
+
+test('login tokens expire after seven days', async () => {
+    const password = 'test-password';
+    await users.createUser({ username: 'expiring-token', passwordHash: await bcrypt.hash(password, 4) });
+    const { token } = await auth.loginUser({ username: 'expiring-token', password }, { jwtSecret: process.env.JWT_SECRET });
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    assert.equal(payload.exp - payload.iat, 7 * 24 * 60 * 60);
+
+    const legacyToken = jwt.sign({ id: 1, username: 'old' }, process.env.JWT_SECRET);
+    let statusCode;
+    const response = {
+        status(code) { statusCode = code; return this; },
+        json() { return this; }
+    };
+    await createAuthenticateToken({ jwtSecret: process.env.JWT_SECRET })(
+        { headers: { authorization: `Bearer ${legacyToken}` } }, response, () => assert.fail('legacy token should be rejected')
+    );
+    assert.equal(statusCode, 401);
+
+    await auth.logoutUser(payload);
+    statusCode = undefined;
+    await createAuthenticateToken({ jwtSecret: process.env.JWT_SECRET })(
+        { headers: { authorization: `Bearer ${token}` } }, response, () => assert.fail('revoked token should be rejected')
+    );
+    assert.equal(statusCode, 401);
 });

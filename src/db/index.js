@@ -130,6 +130,11 @@ async function initializeDatabase() {
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (created_by_user_id) REFERENCES users (id)
         );
+
+        CREATE TABLE IF NOT EXISTS revoked_tokens (
+            jti TEXT PRIMARY KEY,
+            expires_at INTEGER NOT NULL
+        );
     `);
 
     await ensureColumn('users', 'settings', 'TEXT');

@@ -55,7 +55,40 @@ export default function ListView({
                         </select>
                     </div>
                 </div>
-                <table className="w-full text-left text-sm">
+                <div className="divide-y md:hidden">
+                    {filteredRecords.map(record => (
+                        <article key={record.id} className="p-4 space-y-3">
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                    <div className="font-bold text-slate-800 break-words">{record.word}</div>
+                                    {record.reading && <div className="text-xs text-slate-500 mt-1 break-words">{record.reading}</div>}
+                                </div>
+                                <span className="shrink-0 text-xs text-slate-500">{record.mastered ? '已掌握' : `Lv.${record.reviewStage}`}</span>
+                            </div>
+                            <div className="text-xs text-slate-500">{record.mastered ? '已掌握' : `下次复习：${record.nextReviewDate || '待安排'}`}</div>
+                            <div className="flex items-center justify-between gap-3">
+                                <button
+                                    onClick={() => onToggleReadingPractice(record.id)}
+                                    className={`text-xs px-3 py-2 rounded border flex items-center gap-1 ${record.needsReadingPractice ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}
+                                    aria-label={`${record.word}：${record.needsReadingPractice ? '切换为标准模式' : '切换为强化模式'}`}
+                                >
+                                    {record.needsReadingPractice ? <Zap className="w-4 h-4" /> : <BookOpen className="w-4 h-4" />}
+                                    {record.needsReadingPractice ? '强化' : '标准'}
+                                </button>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={() => onOpenModal(record)} className="rounded-lg border border-indigo-200 px-3 py-2 text-indigo-700 text-xs font-medium" aria-label={`查看 ${record.word} 的详情`}>
+                                        详情
+                                    </button>
+                                    <button onClick={() => onDelete(record.id)} className="rounded-lg border border-red-200 px-3 py-2 text-red-700 text-xs font-medium" aria-label={`删除 ${record.word}`}>
+                                        删除
+                                    </button>
+                                </div>
+                            </div>
+                        </article>
+                    ))}
+                    {filteredRecords.length === 0 && <p className="p-8 text-center text-slate-400 text-sm">没有匹配的单词</p>}
+                </div>
+                <table className="hidden md:table w-full text-left text-sm">
                     <thead className="bg-slate-50 border-b">
                         <tr>
                             <th className="p-4">单词</th>
@@ -93,10 +126,10 @@ export default function ListView({
                                     </button>
                                 </td>
                                 <td className="p-4 flex gap-2">
-                                    <button onClick={() => onDelete(record.id)} className="text-red-400 hover:text-red-600">
+                                    <button onClick={() => onDelete(record.id)} className="text-red-400 hover:text-red-600" aria-label={`删除 ${record.word}`}>
                                         <Trash2 className="w-4 h-4" />
                                     </button>
-                                    <button onClick={() => onOpenModal(record)} className="text-indigo-400 hover:text-indigo-600">
+                                    <button onClick={() => onOpenModal(record)} className="text-indigo-400 hover:text-indigo-600" aria-label={`查看 ${record.word} 的详情`}>
                                         <Sparkles className="w-4 h-4" />
                                     </button>
                                 </td>

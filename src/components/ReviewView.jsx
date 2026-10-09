@@ -170,7 +170,10 @@ export default function ReviewView({
                                 </div>
                             </div>
                             <div
-                                onClick={() => setIsFlipped(!isFlipped)}
+                                onClick={event => {
+                                    if (event.target.closest('button, input, textarea, select, a')) return;
+                                    setIsFlipped(previous => !previous);
+                                }}
                                 className="relative w-full h-[420px] sm:h-[450px] bg-white rounded-3xl shadow-2xl border border-slate-100 cursor-pointer overflow-hidden"
                             >
                                 <div className={`absolute inset-0 overflow-y-auto custom-scrollbar ${isFlipped ? 'hidden' : 'block'}`}>
@@ -243,6 +246,15 @@ export default function ReviewView({
                                     </div>
                                 </div>
                             </div>
+
+                            <button
+                                type="button"
+                                onClick={() => setIsFlipped(previous => !previous)}
+                                aria-expanded={isFlipped}
+                                className="mt-3 w-full rounded-xl border border-indigo-200 bg-white px-4 py-2.5 text-sm font-semibold text-indigo-700 hover:bg-indigo-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                            >
+                                {isFlipped ? '返回题目' : '查看答案'}
+                            </button>
 
                             {isFlipped && (
                                 <div className="flex gap-3 mt-6 justify-center animate-in slide-in-from-bottom-4">
