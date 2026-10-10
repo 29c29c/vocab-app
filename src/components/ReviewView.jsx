@@ -247,15 +247,6 @@ export default function ReviewView({
                                 </div>
                             </div>
 
-                            <button
-                                type="button"
-                                onClick={() => setIsFlipped(previous => !previous)}
-                                aria-expanded={isFlipped}
-                                className="mt-3 w-full rounded-xl border border-indigo-200 bg-white px-4 py-2.5 text-sm font-semibold text-indigo-700 hover:bg-indigo-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-                            >
-                                {isFlipped ? '返回题目' : '查看答案'}
-                            </button>
-
                             {isFlipped && (
                                 <div className="flex gap-3 mt-6 justify-center animate-in slide-in-from-bottom-4">
                                     <button onClick={() => handleReviewResult('forget')} className="flex-1 bg-red-100 hover:bg-red-200 text-red-700 py-3 rounded-xl font-bold flex flex-col items-center">
