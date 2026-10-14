@@ -1,123 +1,31 @@
 import { useState } from 'react';
-import { BrainCircuit, Edit3 } from 'lucide-react';
+import { BookOpen, Check, Edit3, Sparkles, X } from 'lucide-react';
 
-const MarkdownRenderer = ({ content }) => {
-    if (!content) return null;
-    const lines = content.split('\n').filter(line => line.trim() !== '');
-
-    return (
-        <div className="space-y-3 text-slate-700 leading-relaxed text-sm md:text-base">
-            {lines.map((line, index) => {
-                const parts = line.split(/(\*\*.*?\*\*)/g);
-                return (
-                    <div key={index} className="min-h-[1.5em]">
-                        {parts.map((part, partIndex) => {
-                            if (part.startsWith('**') && part.endsWith('**')) {
-                                return (
-                                    <strong key={partIndex} className="text-indigo-700 font-bold">
-                                        {part.slice(2, -2)}
-                                    </strong>
-                                );
-                            }
-
-                            if (part.match(/^(\d+\.|-)\s/)) {
-                                return (
-                                    <span key={partIndex} className="font-semibold text-slate-500 mr-1">
-                                        {part}
-                                    </span>
-                                );
-                            }
-
-                            return part;
-                        })}
-                    </div>
-                );
-            })}
-        </div>
-    );
-};
-
-export default function MeaningSection({ record, onUpdate }) {
-    const [isEditing, setIsEditing] = useState(false);
-    const [tempMeaning, setTempMeaning] = useState(record.customMeaning || '');
-
-    const handleSave = () => {
-        onUpdate({ ...record, customMeaning: tempMeaning });
-        setIsEditing(false);
+function MarkdownRenderer({ content }) {
+    return <div className="analysis-text">{content.split('\n').filter(line => line.trim()).map((line, index) => <p key={index}>{line.split(/(\*\*.*?\*\*)/g).map((part, i) => part.startsWith('**') && part.endsWith('**') ? <strong key={i}>{part.slice(2, -2)}</strong> : part)}</p>)}</div>;
+}
+export default function MeaningSection({ record, onUpdate, compact = false }) {
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft] = useState(record.customMeaning || '');
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState('');
+    const save = async () => {
+        if (saving) return;
+        setSaving(true);
+        setError('');
+        try {
+            const result = await onUpdate({ ...record, customMeaning: draft });
+            if (result === false) setError('笔记未保存，请重试。');
+            else setEditing(false);
+        } catch { setError('笔记未保存，请重试。'); }
+        finally { setSaving(false); }
     };
-
-    const stopCardFlip = event => {
-        event.stopPropagation();
-    };
-
-    return (
-        <div className="space-y-4">
-            <div className="bg-yellow-50/50 border border-yellow-100 rounded-xl p-4 transition-all hover:border-yellow-200">
-                <div className="flex justify-between items-start mb-2">
-                    <h4 className="text-xs font-bold text-yellow-600 uppercase tracking-wider flex items-center gap-1">
-                        <Edit3 className="w-3 h-3" /> 我的笔记 / 手动释义
-                    </h4>
-                    {!isEditing && (
-                        <button
-                            onClick={event => {
-                                stopCardFlip(event);
-                                setIsEditing(true);
-                            }}
-                            className="text-xs text-yellow-600 hover:underline"
-                        >
-                            {record.customMeaning ? '编辑' : '添加'}
-                        </button>
-                    )}
-                </div>
-
-                {isEditing ? (
-                    <div className="flex gap-2" onClick={stopCardFlip} onMouseDown={stopCardFlip}>
-                        <input
-                            type="text"
-                            value={tempMeaning}
-                            onChange={event => setTempMeaning(event.target.value)}
-                            placeholder="输入你的自定义释义..."
-                            className="flex-1 text-sm p-2 border border-yellow-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                            autoFocus
-                            onKeyDown={event => event.key === 'Enter' && handleSave()}
-                        />
-                        <button onClick={handleSave} className="text-xs bg-yellow-500 text-white px-3 rounded hover:bg-yellow-600">
-                            保存
-                        </button>
-                    </div>
-                ) : (
-                    <div>
-                        {record.customMeaning ? (
-                            <p className="text-sm text-slate-800 font-medium">{record.customMeaning}</p>
-                        ) : (
-                            <button
-                                onClick={event => {
-                                    stopCardFlip(event);
-                                    setIsEditing(true);
-                                }}
-                                className="w-full text-left text-xs text-slate-400 border border-dashed border-slate-300 rounded p-2 hover:bg-slate-50 transition-colors"
-                            >
-                                + 点击添加手动释义 (优先展示)
-                            </button>
-                        )}
-                    </div>
-                )}
-            </div>
-
-            <div className="bg-white rounded-xl border border-slate-100 p-5 shadow-sm relative">
-                <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                        <BrainCircuit className="w-3 h-3" /> AI 深度解析
-                    </h4>
-                </div>
-                {record.aiAnalysis ? (
-                    <MarkdownRenderer content={record.aiAnalysis} />
-                ) : (
-                    <div className="text-center py-4 text-slate-400">
-                        <p className="text-xs">暂无 AI 解析</p>
-                    </div>
-                )}
-            </div>
-        </div>
-    );
+    const analysis = record.aiAnalysis ? <MarkdownRenderer content={record.aiAnalysis} /> : <p className="meaning-empty">暂无 AI 解析，可在词条详情中生成。</p>;
+    return <div className="meaning-section" onClick={event => event.stopPropagation()}>
+        {record.dictionaryMeaning && <section className="dictionary-meaning"><h4><BookOpen size={14} />词典释义</h4><p>{record.dictionaryMeaning}</p></section>}
+        <section className="personal-meaning"><div className="meaning-heading"><h4><Edit3 size={14} />我的笔记</h4>{!editing && <button onClick={() => { setDraft(record.customMeaning || ''); setEditing(true); }}>{record.customMeaning ? '编辑' : '添加'}</button>}</div>
+            {editing ? <div className="meaning-editor"><textarea aria-label="自定义释义" value={draft} onChange={event => setDraft(event.target.value)} placeholder="写下你理解的意思或记忆提示…" rows={2} autoFocus /><div><button className="secondary-button" onClick={() => setEditing(false)} disabled={saving}><X size={14} />取消</button><button className="primary-button" onClick={save} disabled={saving}><Check size={14} />{saving ? '保存中…' : '保存'}</button></div>{error && <p className="form-error" role="alert">{error}</p>}</div> : record.customMeaning ? <p className="personal-meaning-text">{record.customMeaning}</p> : <p className="meaning-empty">留一点自己的理解，下次更容易想起。</p>}
+        </section>
+        {compact ? <details className="ai-details"><summary><Sparkles size={14} />AI 解析<span>{record.aiAnalysis ? '展开' : '暂无'}</span></summary>{analysis}</details> : <section className="ai-meaning"><h4><Sparkles size={14} />AI 解析</h4>{analysis}</section>}
+    </div>;
 }

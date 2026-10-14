@@ -120,12 +120,12 @@ export default function WritingPolisher({ settings, requestAiPrompt, onAddWords,
     };
 
     return (
-        <div className="bg-white rounded-2xl shadow-xl border border-indigo-50 flex flex-col h-[calc(100vh-140px)] animate-in zoom-in-95 overflow-hidden">
+        <div className="writing-tool tool-surface">
             <div className="p-4 border-b flex justify-between items-center bg-indigo-50/50">
                 <h2 className="font-bold text-slate-800 flex items-center gap-2">
                     <PenTool className="w-5 h-5 text-indigo-600" /> 写作进阶与润色
                 </h2>
-                <button onClick={onCancel} className="p-2 hover:bg-slate-200 rounded-full">
+                <button onClick={onCancel} aria-label="关闭写作润色" className="p-2 hover:bg-slate-200 rounded-full">
                     <X className="w-5 h-5 text-slate-500" />
                 </button>
             </div>

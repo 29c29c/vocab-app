@@ -41,10 +41,10 @@ export default function SettingsPanel({
     showReviewSentence
 }) {
     const apiKeyStatusClassName = apiKeySaveStatus === 'error'
-        ? 'text-red-200 bg-red-500/10 border border-red-300/20'
+        ? 'text-red-700 bg-red-500/10 border border-red-300/20'
         : apiKeySaveStatus === 'saved'
-            ? 'text-emerald-200 bg-emerald-500/10 border border-emerald-300/20'
-            : 'text-indigo-100/80 bg-white/5 border border-white/10';
+            ? 'text-emerald-700 bg-emerald-500/10 border border-emerald-300/20'
+            : 'text-slate-500 bg-slate-50 border border-slate-200';
     const shortcutValues = {
         reviewShortcutEasy,
         reviewShortcutForget,
@@ -53,7 +53,7 @@ export default function SettingsPanel({
 
     const renderShortcutField = field => (
         <label key={field.key} className="block">
-            <div className="text-xs text-indigo-200 mb-1">
+            <div className="text-xs text-slate-500 mb-1">
                 {field.label}
                 <span className="opacity-70 ml-1">({field.hint})</span>
             </div>
@@ -61,67 +61,67 @@ export default function SettingsPanel({
                 type="text"
                 value={shortcutValues[field.key] || ''}
                 onChange={event => onUpdateSetting(field.key, event.target.value.toUpperCase().slice(0, 1))}
-                maxLength={1}
-                className="w-full p-2 rounded bg-black/30 border-white/20 text-white text-base uppercase tracking-[0.2em]"
+                aria-label={`${field.label}快捷键`} maxLength={1}
+                className="w-full p-2 rounded bg-slate-50 border-slate-200 text-slate-800 text-base uppercase tracking-[0.2em]"
                 placeholder="-"
             />
         </label>
     );
 
     return (
-        <div className="max-w-5xl mx-auto mt-4 p-4 bg-black/20 rounded-xl backdrop-blur border border-white/10 animate-in slide-in-from-top-2 space-y-5">
+        <div className="settings-content space-y-5">
             {settingsStatus === 'loading' && (
-                <div className="text-sm text-indigo-100 bg-white/5 rounded-lg px-3 py-2" role="status">设置正在加载，复习可以继续使用。</div>
+                <div className="text-sm text-slate-600 bg-slate-50 rounded-lg px-3 py-2" role="status">设置正在加载，复习可以继续使用。</div>
             )}
             {settingsStatus === 'error' && (
-                <div className="text-sm text-amber-100 bg-amber-500/10 rounded-lg px-3 py-2 flex items-center justify-between gap-3" role="alert">
+                <div className="text-sm text-amber-800 bg-amber-500/10 rounded-lg px-3 py-2 flex items-center justify-between gap-3" role="alert">
                     <span>设置加载失败：{settingsError}。当前使用本账户缓存或默认设置。</span>
                     <button type="button" onClick={onRetrySettings} className="shrink-0 rounded bg-amber-500/30 px-3 py-1">重试</button>
                 </div>
             )}
             {settingsSaveStatus === 'saving' && (
-                <div className="text-sm text-indigo-100 bg-white/5 rounded-lg px-3 py-2" role="status">设置保存中…</div>
+                <div className="text-sm text-slate-600 bg-slate-50 rounded-lg px-3 py-2" role="status">设置保存中…</div>
             )}
             {settingsSaveStatus === 'error' && (
-                <div className="text-sm text-amber-100 bg-amber-500/10 rounded-lg px-3 py-2 flex items-center justify-between gap-3" role="alert">
+                <div className="text-sm text-amber-800 bg-amber-500/10 rounded-lg px-3 py-2 flex items-center justify-between gap-3" role="alert">
                     <span>设置尚未保存：{settingsSaveError}</span>
                     <button type="button" onClick={onRetrySettings} className="shrink-0 rounded bg-amber-500/30 px-3 py-1">重试</button>
                 </div>
             )}
             <div>
-                <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
                     <KeyRound className="w-4 h-4 text-yellow-300" /> AI 设置
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label className="text-xs text-indigo-200">API Key</label>
+                        <label className="text-xs text-slate-500">API Key</label>
                         <div className="mt-1 flex gap-2">
                             <input
                                 type="password"
                                 value={apiKeyDraft}
                                 onChange={event => onUpdateApiKeyDraft(event.target.value)}
                                 placeholder="输入后点击保存到服务端"
-                                className="flex-1 p-2 rounded bg-black/30 border-white/20 text-white text-base"
+                                aria-label="AI API Key" className="min-w-0 flex-1 p-2 rounded bg-slate-50 border-slate-200 text-slate-800 text-base"
                             />
                             <button
                                 onClick={onSaveApiKey}
                                 disabled={isSavingApiKey}
-                                className="px-4 rounded bg-emerald-500 hover:bg-emerald-600 text-white font-medium disabled:opacity-50 flex items-center gap-1"
+                                className="px-4 rounded bg-emerald-500 hover:bg-emerald-600 text-slate-800 font-medium disabled:opacity-50 flex items-center gap-1"
                             >
                                 {isSavingApiKey ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                                 保存
                             </button>
                         </div>
-                        <div className={`mt-2 text-xs rounded-lg px-3 py-2 ${apiKeyStatusClassName}`}>
+                        {apiKeySaveMessage && <div className={`mt-2 text-xs rounded-lg px-3 py-2 ${apiKeyStatusClassName}`}>
                             {apiKeySaveMessage}
-                        </div>
+                        </div>}
                     </div>
                     <div>
-                        <label className="text-xs text-indigo-200">Provider</label>
+                        <label className="text-xs text-slate-500">Provider</label>
                         <select
                             value={provider}
                             onChange={event => onUpdateSetting('provider', event.target.value)}
-                            className="w-full mt-1 p-2 rounded bg-black/30 text-white text-base"
+                            aria-label="AI 服务商" className="w-full mt-1 p-2 rounded bg-slate-50 text-slate-800 text-base"
                         >
                             {AI_PROVIDER_OPTIONS.map(option => (
                                 <option key={option.value} value={option.value}>
@@ -131,10 +131,10 @@ export default function SettingsPanel({
                         </select>
                     </div>
                 </div>
-                <div className="mt-4 rounded-xl border border-white/10 bg-white/5 px-4 py-3 flex items-center justify-between gap-4">
+                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center justify-between gap-4">
                     <div>
-                        <div className="text-sm font-bold text-white">复习显示例句</div>
-                        <div className="text-xs text-indigo-100/80 mt-1">
+                        <div className="text-sm font-bold text-slate-800">复习显示例句</div>
+                        <div className="text-xs text-slate-500 mt-1">
                             普通复习和重点巩固共用这个设置。
                         </div>
                     </div>
@@ -142,7 +142,7 @@ export default function SettingsPanel({
                         type="button"
                         onClick={() => onUpdateSetting('showReviewSentence', !showReviewSentence)}
                         className={`relative inline-flex h-7 w-14 items-center rounded-full transition ${showReviewSentence ? 'bg-emerald-500' : 'bg-slate-600'}`}
-                        aria-pressed={showReviewSentence}
+                        aria-label="复习显示例句" aria-pressed={showReviewSentence}
                         title={showReviewSentence ? '已开启' : '已关闭'}
                     >
                         <span
@@ -150,9 +150,9 @@ export default function SettingsPanel({
                         />
                     </button>
                 </div>
-                <div className="mt-4 rounded-xl border border-white/10 bg-white/5 px-4 py-4">
-                    <div className="text-sm font-bold text-white">复习快捷键</div>
-                    <div className="text-xs text-indigo-100/80 mt-1">
+                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+                    <div className="text-sm font-bold text-slate-800">复习快捷键</div>
+                    <div className="text-xs text-slate-500 mt-1">
                         仅用于电脑网页端复习评分。
                     </div>
                     <div className="mt-4">
@@ -164,15 +164,15 @@ export default function SettingsPanel({
             </div>
 
             {(isAdmin || inviteCodesLoading || !adminStatusChecked) && (
-                <div className="border-t border-white/10 pt-5 space-y-4">
+                <div className="border-t border-slate-200 pt-5 space-y-4">
                     <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                        <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
                             <ShieldCheck className="w-4 h-4 text-emerald-300" /> 邀请码管理
                         </h3>
                         <button
                             onClick={onRefreshInviteCodes}
                             disabled={inviteCodesLoading}
-                            className="text-xs px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 text-white disabled:opacity-50 flex items-center gap-1"
+                            className="text-xs px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-800 disabled:opacity-50 flex items-center gap-1"
                         >
                             <RefreshCw className={`w-3 h-3 ${inviteCodesLoading ? 'animate-spin' : ''}`} />
                             刷新
@@ -180,13 +180,13 @@ export default function SettingsPanel({
                     </div>
 
                     {!adminStatusChecked && (
-                        <div className="text-sm text-indigo-100 bg-white/5 rounded-lg px-3 py-2">
+                        <div className="text-sm text-slate-600 bg-slate-50 rounded-lg px-3 py-2">
                             正在检查管理员权限...
                         </div>
                     )}
 
                     {inviteCodeError && (
-                        <div className="text-sm text-red-200 bg-red-500/10 border border-red-300/20 rounded-lg px-3 py-2">
+                        <div className="text-sm text-red-700 bg-red-500/10 border border-red-300/20 rounded-lg px-3 py-2">
                             {inviteCodeError}
                         </div>
                     )}
@@ -195,29 +195,29 @@ export default function SettingsPanel({
                         <>
                             <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_auto] gap-3 items-end">
                                 <div>
-                                    <label className="text-xs text-indigo-200">邀请码</label>
+                                    <label className="text-xs text-slate-500">邀请码</label>
                                     <input
                                         type="text"
                                         value={inviteCodeDraft.code}
                                         onChange={event => onUpdateInviteCodeDraft('code', event.target.value)}
                                         placeholder="例如：spring-2026-admin"
-                                        className="w-full mt-1 p-2 rounded bg-black/30 border-white/20 text-white text-base"
+                                        className="w-full mt-1 p-2 rounded bg-slate-50 border-slate-200 text-slate-800 text-base"
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-xs text-indigo-200">可用次数</label>
+                                    <label className="text-xs text-slate-500">可用次数</label>
                                     <input
                                         type="number"
                                         min="1"
                                         value={inviteCodeDraft.maxUses}
                                         onChange={event => onUpdateInviteCodeDraft('maxUses', event.target.value)}
-                                        className="w-full mt-1 p-2 rounded bg-black/30 border-white/20 text-white text-base"
+                                        className="w-full mt-1 p-2 rounded bg-slate-50 border-slate-200 text-slate-800 text-base"
                                     />
                                 </div>
                                 <button
                                     onClick={onCreateInviteCode}
                                     disabled={isCreatingInviteCode}
-                                    className="h-10 px-4 rounded bg-emerald-500 hover:bg-emerald-600 text-white font-medium disabled:opacity-50 flex items-center justify-center gap-1"
+                                    className="h-10 px-4 rounded bg-emerald-500 hover:bg-emerald-600 text-slate-800 font-medium disabled:opacity-50 flex items-center justify-center gap-1"
                                 >
                                     {isCreatingInviteCode ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                                     新增
@@ -226,27 +226,27 @@ export default function SettingsPanel({
 
                             <div className="space-y-2">
                                 {inviteCodesLoading && (
-                                    <div className="text-sm text-indigo-100 bg-white/5 rounded-lg px-3 py-2">
+                                    <div className="text-sm text-slate-600 bg-slate-50 rounded-lg px-3 py-2">
                                         正在加载邀请码...
                                     </div>
                                 )}
 
                                 {!inviteCodesLoading && inviteCodes.length === 0 && (
-                                    <div className="text-sm text-indigo-100 bg-white/5 rounded-lg px-3 py-2">
+                                    <div className="text-sm text-slate-600 bg-slate-50 rounded-lg px-3 py-2">
                                         当前还没有邀请码，先创建一个吧。
                                     </div>
                                 )}
 
                                 {inviteCodes.map(inviteCode => (
-                                    <div key={inviteCode.id} className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                                    <div key={inviteCode.id} className="rounded-xl border border-slate-200 bg-white px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                                         <div className="min-w-0">
                                             <div className="flex items-center gap-2 flex-wrap">
-                                                <span className="font-mono text-sm text-white break-all">{inviteCode.code}</span>
-                                                <span className={`text-[11px] px-2 py-0.5 rounded-full ${inviteCode.isActive ? 'bg-emerald-500/20 text-emerald-200' : 'bg-slate-500/20 text-slate-300'}`}>
+                                                <span className="font-mono text-sm text-slate-800 break-all">{inviteCode.code}</span>
+                                                <span className={`text-[11px] px-2 py-0.5 rounded-full ${inviteCode.isActive ? 'bg-emerald-500/20 text-emerald-700' : 'bg-slate-500/20 text-slate-300'}`}>
                                                     {inviteCode.isActive ? '启用中' : '已停用'}
                                                 </span>
                                             </div>
-                                            <div className="text-xs text-indigo-100/80 mt-1">
+                                            <div className="text-xs text-slate-500 mt-1">
                                                 已使用 {inviteCode.usedCount} / {inviteCode.maxUses}
                                             </div>
                                         </div>
@@ -254,14 +254,14 @@ export default function SettingsPanel({
                                             <button
                                                 onClick={() => onToggleInviteCode(inviteCode)}
                                                 disabled={inviteCodeMutatingId === inviteCode.id}
-                                                className="text-xs px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 text-white disabled:opacity-50"
+                                                className="text-xs px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-800 disabled:opacity-50"
                                             >
                                                 {inviteCodeMutatingId === inviteCode.id ? '处理中...' : inviteCode.isActive ? '停用' : '启用'}
                                             </button>
                                             <button
                                                 onClick={() => onDeleteInviteCode(inviteCode.id)}
                                                 disabled={inviteCodeMutatingId === inviteCode.id}
-                                                className="text-xs px-3 py-1.5 rounded bg-red-500/20 hover:bg-red-500/30 text-red-100 disabled:opacity-50 flex items-center gap-1"
+                                                className="text-xs px-3 py-1.5 rounded bg-red-500/20 hover:bg-red-500/30 text-red-700 disabled:opacity-50 flex items-center gap-1"
                                             >
                                                 <Trash2 className="w-3 h-3" /> 删除
                                             </button>

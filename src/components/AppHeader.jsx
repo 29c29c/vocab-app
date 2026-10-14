@@ -1,18 +1,8 @@
-import {
-    BarChart2,
-    BookOpen,
-    Calendar,
-    FileText,
-    Layers,
-    LogOut,
-    PenTool,
-    Plus,
-    Repeat,
-    Settings,
-    Upload,
-    Zap
-} from 'lucide-react';
+import { useState } from 'react';
+import { BarChart2, BookOpen, Calendar, Check, ChevronRight, Cloud, FileText, LayoutGrid, LogOut, PenTool, Plus, Repeat, Settings, Upload, Zap } from 'lucide-react';
 import SettingsPanel from './SettingsPanel.jsx';
+import Dialog from './Dialog.jsx';
+import { VIEW_TITLES } from './workspaceTitles.js';
 
 export default function AppHeader({
     apiKeyDraft,
@@ -65,119 +55,76 @@ export default function AppHeader({
     onUpdateSetting,
     view
 }) {
-    const mainNavItems = [
-        { id: 'input', label: '录入', icon: Plus },
-        { id: 'review', label: '复习', icon: Repeat },
-        { id: 'list', label: '列表', icon: BookOpen },
-        { id: 'frequency', label: '词频', icon: BarChart2 },
-        { id: 'date', label: '日期', icon: Calendar }
+    const [toolsOpen, setToolsOpen] = useState(false);
+    const navItems = [
+        { id: 'review', label: '今日复习', icon: Repeat },
+        { id: 'list', label: '我的词库', icon: BookOpen },
+        { id: 'input', label: '新词录入', icon: Plus },
+        { id: 'frequency', label: '词频统计', icon: BarChart2 },
+        { id: 'date', label: '日期归档', icon: Calendar }
     ];
-
-    const toolNavItems = [
-        { id: 'article', title: '文章识别', icon: FileText },
-        { id: 'writing', title: '写作进阶', icon: PenTool }
+    const toolItems = [
+        { id: 'article', label: '阅读提词', note: '从文章中提取单词与表达', icon: FileText },
+        { id: 'writing', label: '写作润色', note: '修改草稿，收藏地道表达', icon: PenTool }
     ];
-
+    const selectView = id => { onSetView(id); setToolsOpen(false); };
+    const saveText = saveStatus === 'saved' ? '已保存到服务器'
+        : saveStatus === 'saving' ? `${pendingCount + activeWriteCount} 项待同步`
+            : saveStatus === 'conflict' ? '同步冲突，需处理' : '同步失败';
+    const countText = dataStatus === 'loading' || dataStatus === 'idle' ? '正在加载词库'
+        : dataStatus === 'error' ? '词库加载失败'
+            : recordsCount === null ? '复习数据已就绪' : `${recordsCount} 个词条${dataStatus === 'cached' ? ' · 本地待核对' : dataStatus === 'partial' ? ' · 复习先行' : ''}`;
+    const renderNav = item => {
+        const Icon = item.icon;
+        return <button key={item.id} onClick={() => selectView(item.id)} className={`sidebar-link ${view === item.id ? 'active' : ''}`} aria-current={view === item.id ? 'page' : undefined}>
+            <Icon size={19} strokeWidth={1.8} /><span>{item.label}</span>
+            {item.id === 'review' && reviewQueueLength > 0 && <span className="nav-count">{reviewQueueLength}</span>}
+        </button>;
+    };
     return (
-        <header className="bg-gradient-to-r from-indigo-700 to-purple-700 text-white shadow-lg sticky top-0 z-50 pt-[env(safe-area-inset-top)] backdrop-blur-md">
-            <div className="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 p-4">
-                <div className="flex items-center gap-3">
-                    <Layers className="w-8 h-8 text-yellow-300" />
-                    <div>
-                        <h1 className="text-xl font-bold tracking-tight">
-                            记忆飞船 <span className="opacity-80 font-normal text-xs bg-white/20 px-2 py-0.5 rounded">V7.0 Beta</span>
-                        </h1>
-                        <div className="text-xs opacity-70 flex gap-2">
-                            <span>{dataStatus === 'loading' || dataStatus === 'idle'
-                                ? '单词加载中…'
-                                : dataStatus === 'error'
-                                    ? '单词加载失败'
-                                    : recordsCount === null
-                                        ? '复习数据已加载（总数待核对）'
-                                        : `已存 ${recordsCount} 条${dataStatus === 'cached' ? '（本地待核对）' : dataStatus === 'partial' ? '（复习先行）' : ''}`}</span>
-                            <span>|</span>
-                            <span>{saveStatus === 'saved' ? '已保存到服务器'
-                                : saveStatus === 'saving' ? `${pendingCount + activeWriteCount} 项保存中`
-                                    : saveStatus === 'conflict' ? '保存冲突，需处理'
-                                        : saveError ? '保存失败' : '保存中…'}</span>
-                            <span>|</span>
-                            <span>用户: {currentUser}</span>
-                        </div>
-                    </div>
+        <>
+            <a className="skip-link" href="#main-content">跳到主要内容</a>
+            <aside className="app-sidebar" aria-label="主要导航">
+                <button className="brand" onClick={() => selectView('review')} aria-label="记忆飞船首页"><BookOpen size={31} strokeWidth={1.6} /><span>记忆飞船</span></button>
+                <nav className="sidebar-nav">{navItems.map(renderNav)}</nav>
+                <div className="sidebar-separator" />
+                <nav className="sidebar-nav" aria-label="学习工具">
+                    {toolItems.map(renderNav)}
+                    <button className="sidebar-link" onClick={handleImportClick}><Upload size={19} strokeWidth={1.8} /><span>导入 Excel</span></button>
+                    <button className="sidebar-link" onClick={handleBatchAnalyze} disabled={isBatchAnalyzing}><Zap size={19} strokeWidth={1.8} /><span>{isBatchAnalyzing ? '正在解析…' : '批量 AI 解析'}</span></button>
+                </nav>
+                <div className="sidebar-bottom">
+                    <p className="library-count">{countText}</p>
+                    <button className="sidebar-link" onClick={onToggleSettings}><Settings size={19} strokeWidth={1.8} /><span>设置</span></button>
+                    <div className="user-row"><span className="user-avatar">{currentUser?.slice(0, 1).toUpperCase()}</span><span className="user-name">{currentUser}</span><button className="icon-button" onClick={handleLogout} disabled={isLoggingOut} aria-label="退出登录" title="退出登录"><LogOut size={17} /></button></div>
                 </div>
-                <div className="w-full md:w-auto overflow-x-auto no-scrollbar mask-gradient-to-r">
-                    <div className="flex items-center gap-3 min-w-max mx-auto md:mx-0 px-1 justify-center md:justify-end">
-                        <nav className="flex bg-white/10 backdrop-blur-sm rounded-lg p-1">
-                            {mainNavItems.map(item => {
-                                const Icon = item.icon;
-                                const isActive = view === item.id;
-                                return (
-                                    <button
-                                        key={item.id}
-                                        onClick={() => onSetView(item.id)}
-                                        className={`px-3 py-2 rounded text-sm flex items-center gap-2 whitespace-nowrap transition relative ${isActive ? 'bg-white text-indigo-700 shadow' : 'hover:bg-white/10'}`}
-                                    >
-                                        <Icon className="w-4 h-4" />
-                                        {item.label}
-                                        {item.id === 'review' && reviewQueueLength > 0 && (
-                                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] flex items-center justify-center rounded-full">
-                                                {reviewQueueLength}
-                                            </span>
-                                        )}
-                                    </button>
-                                );
-                            })}
-                        </nav>
-                        <div className="flex items-center shrink-0">
-                            <button onClick={handleImportClick} className="p-2 rounded-full hover:bg-white/20" title="导入 Excel">
-                                <Upload className="w-5 h-5" />
-                                <input
-                                    type="file"
-                                    ref={fileInputRef}
-                                    onChange={handleFileChange}
-                                    accept=".xlsx, .xls"
-                                    className="hidden"
-                                />
-                            </button>
-                            {toolNavItems.map(item => {
-                                const Icon = item.icon;
-                                const isActive = view === item.id;
-                                return (
-                                    <button
-                                        key={item.id}
-                                        onClick={() => onSetView(item.id)}
-                                        className={`p-2 rounded-full ${isActive ? 'bg-white text-indigo-700 shadow' : 'hover:bg-white/20'}`}
-                                        title={item.title}
-                                    >
-                                        <Icon className="w-5 h-5" />
-                                    </button>
-                                );
-                            })}
-                            <button
-                                onClick={handleBatchAnalyze}
-                                disabled={isBatchAnalyzing}
-                                className={`p-2 rounded-full ${isBatchAnalyzing ? 'bg-indigo-500 animate-pulse' : 'hover:bg-white/20'}`}
-                                title="批量解析"
-                            >
-                                <Zap className={`w-5 h-5 ${isBatchAnalyzing ? 'fill-yellow-300 text-yellow-300' : ''}`} />
-                            </button>
-                            <button onClick={onToggleSettings} className="p-2 rounded-full hover:bg-white/20">
-                                <Settings className="w-5 h-5" />
-                            </button>
-                            <button
-                                onClick={handleLogout}
-                                disabled={isLoggingOut}
-                                className="p-2 rounded-full hover:bg-red-500/50 text-white/80 hover:text-white transition disabled:opacity-50"
-                                title={isLoggingOut ? '正在退出登录' : '退出登录'}
-                                aria-label={isLoggingOut ? '正在退出登录' : '退出登录'}
-                            >
-                                <LogOut className="w-5 h-5" />
-                            </button>
-                        </div>
-                    </div>
+            </aside>
+            <header className="workspace-bar">
+                <div className="mobile-brand"><BookOpen size={27} strokeWidth={1.6} /><span>记忆飞船</span></div>
+                <span className="workspace-bar-title">{VIEW_TITLES[view]}</span>
+                <div className={`sync-status ${saveStatus !== 'saved' ? 'sync-pending' : ''}`} role="status" title={saveError || countText}>
+                    {saveStatus === 'saved' ? <Check size={15} /> : <Cloud size={15} />}<span>{saveText}</span>
                 </div>
-            </div>
-            {showSettings && (
+                <button className="icon-button mobile-settings" onClick={onToggleSettings} aria-label="设置"><Settings size={21} /></button>
+            </header>
+            <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".xlsx, .xls" hidden />
+            <nav className="mobile-nav" aria-label="底部导航">
+                {[{ id: 'review', label: '复习', icon: Repeat }, { id: 'list', label: '词库', icon: BookOpen }, { id: 'input', label: '录入', icon: Plus }].map(item => {
+                    const Icon = item.icon;
+                    return <button key={item.id} onClick={() => selectView(item.id)} className={view === item.id ? 'active' : ''} aria-current={view === item.id ? 'page' : undefined}><Icon size={21} strokeWidth={1.8} /><span>{item.label}</span></button>;
+                })}
+                <button onClick={() => setToolsOpen(true)} className={['article', 'writing', 'frequency', 'date'].includes(view) || toolsOpen ? 'active' : ''} aria-label="学习工具"><LayoutGrid size={21} strokeWidth={1.8} /><span>工具</span></button>
+            </nav>
+            {toolsOpen && <Dialog title="学习工具" onClose={() => setToolsOpen(false)} className="tools-dialog">
+                {[...toolItems, ...navItems.filter(item => ['frequency', 'date'].includes(item.id))].map(item => {
+                    const Icon = item.icon;
+                    return <button className="tool-link" key={item.id} onClick={() => selectView(item.id)}><Icon size={22} /><span><strong>{item.label}</strong>{item.note && <small>{item.note}</small>}</span><ChevronRight size={17} /></button>;
+                })}
+                <button className="tool-link" onClick={() => { setToolsOpen(false); handleImportClick(); }}><Upload size={22} /><span><strong>导入 Excel</strong><small>批量添加你的词表</small></span><ChevronRight size={17} /></button>
+                <button className="tool-link" onClick={() => { setToolsOpen(false); handleBatchAnalyze(); }} disabled={isBatchAnalyzing}><Zap size={22} /><span><strong>{isBatchAnalyzing ? '正在解析…' : '批量 AI 解析'}</strong></span><ChevronRight size={17} /></button>
+                <div className="tools-account"><span>{currentUser} · {countText}</span><button onClick={handleLogout} disabled={isLoggingOut}>退出登录</button></div>
+            </Dialog>}
+            {showSettings && <Dialog title="设置" onClose={onToggleSettings} className="settings-dialog">
                 <SettingsPanel
                     adminStatusChecked={adminStatusChecked}
                     apiKeyDraft={apiKeyDraft}
@@ -210,7 +157,8 @@ export default function AppHeader({
                     reviewShortcutHard={reviewShortcutHard}
                     showReviewSentence={showReviewSentence}
                 />
-            )}
-        </header>
+
+            </Dialog>}
+        </>
     );
 }

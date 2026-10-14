@@ -1,282 +1,86 @@
-import {
-    GraduationCap,
-    RotateCcw,
-    Trophy,
-    Volume2,
-    Zap
-} from 'lucide-react';
-
+import { useRef } from 'react';
+import { ArrowRight, Check, CheckCheck, GraduationCap, Headphones, RotateCcw, Volume2, Zap } from 'lucide-react';
 import MeaningSection from './MeaningSection.jsx';
+import { getReviewGesture } from '../client/reviewGestures.js';
 
-function ReviewSentenceBlock({
-    className = '',
-    sentence,
-    textClassName = 'text-slate-600',
-    scrollable = true
-}) {
-    if (!sentence) return null;
-
-    return (
-        <div className={`bg-slate-50 p-3 rounded-xl border border-slate-100 overflow-hidden ${className}`}>
-            <p className={`${textClassName} italic leading-6 break-words ${scrollable ? 'max-h-36 overflow-y-auto custom-scrollbar pr-1' : ''}`}>
-                &quot;{sentence}&quot;
-            </p>
-        </div>
-    );
+function RecordBoard({ records, mastered = false, onResurrect }) {
+    if (!records.length) return <div className="empty-state"><GraduationCap size={32} /><h3>{mastered ? '你的积累，会在这里开花。' : '暂时没有需要重点巩固的词。'}</h3><p>{mastered ? '完成复习，或把熟悉的词标记为已掌握。' : '反复忘记的词会自动进入这里。'}</p></div>;
+    return <div className="record-board">{records.map(record => <div className="board-row" key={record.id}>
+        <div><h3>{record.word}</h3><p>{record.customMeaning || record.dictionaryMeaning || record.reading}</p><small>{mastered ? `掌握于 ${record.masteredDate}` : `下次复习 ${record.nextReviewDate} · 忘记 ${record.forgetCount} 次 · 模糊 ${record.hardCount} 次 · 恢复 ${record.focusRecoveryStreak}/2`}</small></div>
+        {mastered ? <button className="secondary-button" onClick={() => onResurrect(record.id)}>重新学习</button> : <Zap size={19} className="focus-icon" />}
+    </div>)}</div>;
 }
 
-function MasteredList({ onResurrect, records }) {
-    const masteredRecords = records
-        .filter(record => record.mastered)
-        .sort((left, right) => new Date(right.masteredDate) - new Date(left.masteredDate));
-
-    if (masteredRecords.length === 0) {
-        return <div className="text-center py-10 text-slate-400">荣誉殿堂空空如也，快去复习吧！</div>;
-    }
-
-    return (
-        <div className="grid gap-4">
-            {masteredRecords.map(record => (
-                <div key={record.id} className="bg-white p-4 rounded-xl border border-amber-100 shadow-sm flex justify-between items-center">
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <Trophy className="w-4 h-4 text-amber-500" />
-                            <h3 className="font-bold text-slate-800">{record.word}</h3>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-1">掌握于 {record.masteredDate}</p>
-                    </div>
-                    <button onClick={() => onResurrect(record.id)} className="text-xs text-indigo-500 hover:underline">
-                        重新学习
-                    </button>
+export default function ReviewView({ currentQuestionType, currentReviewItem, focusBoardRecords, focusQueueCount,
+    handleMaster, handleReviewResult, handleUndoReview, isFlipped, isPartial, isReviewBusy, mainQueueCount,
+    onResurrect, onSetView, playTTS, records, reviewHistory, reviewQueue, reviewTab, showReviewSentence,
+    setIsFlipped, setReviewTab, updateRecord, reviewShortcutEasy, reviewShortcutForget, reviewShortcutHard }) {
+    const masteredRecords = records.filter(record => record.mastered).sort((a, b) => String(b.masteredDate).localeCompare(String(a.masteredDate)));
+    const pendingIds = new Set(reviewQueue.map(record => record.id));
+    const completedCount = new Set(reviewHistory.filter(entry => entry.queueTab === reviewTab && !pendingIds.has(entry.record.id)).map(entry => entry.record.id)).size;
+    const total = completedCount + reviewQueue.length;
+    const progress = total ? Math.round(completedCount / total * 100) : 100;
+    const item = currentReviewItem;
+    const pointerStart = useRef(null);
+    const suppressClick = useRef(false);
+    const tabs = [{ id: 'queue', label: '今日任务', count: mainQueueCount }, { id: 'focus', label: '重点巩固', count: focusQueueCount }, { id: 'mastered', label: '已掌握', count: isPartial ? null : masteredRecords.length }];
+    const label = currentQuestionType === 'A' ? '看字读音' : currentQuestionType === 'B' ? '听音辨义' : '回忆词义';
+    const score = quality => { if (!isReviewBusy && isFlipped) void handleReviewResult(quality); };
+    const finishGesture = event => {
+        const start = pointerStart.current;
+        pointerStart.current = null;
+        if (!start || start.id !== event.pointerId) return;
+        const dx = event.clientX - start.x;
+        const dy = event.clientY - start.y;
+        const action = getReviewGesture({ deltaX: dx, deltaY: dy, isRevealed: isFlipped });
+        if (!action) return;
+        suppressClick.current = true;
+        if (action === 'reveal') setIsFlipped(true);
+        else score(action);
+    };
+    return <section className={`review-page ${reviewTab !== 'mastered' && item ? 'has-review-card' : ''}`}>
+        <div className="review-intro"><h1><span className="mobile-review-title">今日复习</span><span className="desktop-review-title">每一次回想，都在靠近掌握。</span></h1><p><span className="desktop-review-title">反复遇见、主动回忆，让这些词真正成为你的知识。</span><span className="mobile-review-title">每一次回想，都在靠近掌握。</span></p></div>
+        <div className="review-layout"><div className="review-workspace">
+            <div className="review-tabs" role="tablist" aria-label="复习分类">{tabs.map(tab => <button key={tab.id} role="tab" aria-selected={reviewTab === tab.id} disabled={isReviewBusy || (tab.id === 'mastered' && isPartial)} onClick={() => { setIsFlipped(false); setReviewTab(tab.id); }} className={reviewTab === tab.id ? 'active' : ''}>{tab.label}{tab.count !== null && <span>{tab.count}</span>}</button>)}</div>
+            {reviewTab === 'mastered' ? <RecordBoard records={masteredRecords} mastered onResurrect={onResurrect} /> : !item ? <>
+                <div className="review-complete"><div className="complete-icon"><CheckCheck size={34} strokeWidth={1.6} /></div><h2>{reviewTab === 'queue' ? '今天的复习，完成了。' : '重点巩固任务已完成。'}</h2><p>{reviewTab === 'queue' ? '给记忆一点时间。下次到期，我们再见。' : '难词也在慢慢变熟悉，继续保持。'}</p><div className="complete-actions"><button className="primary-button" onClick={() => onSetView('input')}>记录一个新词<ArrowRight size={17} /></button>{reviewTab === 'queue' && focusQueueCount > 0 && <button className="secondary-button" onClick={() => setReviewTab('focus')}>继续重点巩固 · {focusQueueCount}</button>}</div></div>
+                {reviewHistory.length > 0 && <button className="undo-button complete-undo" onClick={handleUndoReview} disabled={isReviewBusy}><RotateCcw size={15} />撤销上一步</button>}
+                {reviewTab === 'focus' && <RecordBoard records={focusBoardRecords} />}
+            </> : <>
+                <div className="review-progress"><div className="progress-track" role="progressbar" aria-label="本轮完成进度" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}><div style={{ width: `${progress}%` }} /></div><span>已完成 {completedCount}<i />待复习 {reviewQueue.length}</span></div>
+                <article className={`flashcard ${isFlipped ? 'is-revealed' : ''}`} aria-label={isFlipped ? '单词答案' : label} aria-busy={isReviewBusy} tabIndex={0}
+                    onKeyDown={event => { if (event.key === 'Enter' && event.target === event.currentTarget && !isReviewBusy) setIsFlipped(true); }}
+                    onPointerDown={event => {
+                        suppressClick.current = false;
+                        if (event.pointerType !== 'touch' || event.target.closest('button, input, textarea, select, a, summary') || window.getSelection()?.toString()) return;
+                        pointerStart.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
+                        event.currentTarget.setPointerCapture(event.pointerId);
+                    }} onPointerUp={finishGesture} onPointerCancel={() => { pointerStart.current = null; }}
+                    onClick={event => {
+                        if (suppressClick.current) { suppressClick.current = false; return; }
+                        if (!isFlipped && !isReviewBusy && !event.target.closest('button') && !window.getSelection()?.toString()) setIsFlipped(true);
+                    }}>
+                    <div className="flashcard-meta"><span>{isFlipped ? '核对答案' : label}</span><span>{item.sameDayReviewTarget > 0 ? `今日巩固 ${item.sameDayReviewDone}/${item.sameDayReviewTarget}` : `阶段 ${item.reviewStage}${item.needsReadingPractice ? ' · 读音强化' : ''}`}</span></div>
+                    {isFlipped ? <div className="answer-content" key={`answer-${item.id}`}>
+                        <div className="answer-word-row"><div className="min-w-0"><h2 className="answer-word">{item.word}</h2>{item.reading && <p className="word-reading">{item.reading}</p>}</div><button className="sound-button" onClick={() => playTTS(item.word)} aria-label="播放单词发音"><Volume2 size={22} /></button></div>
+                        {item.sentence && <blockquote className="answer-sentence">{item.sentence}</blockquote>}
+                        <MeaningSection key={`${item.id}:${item.revision}:${item.clientMutationId || ''}`} record={item} onUpdate={updateRecord} compact />
+                        <button className="master-button" onClick={() => handleMaster(item.id)} disabled={isReviewBusy}><GraduationCap size={16} />这个词已熟悉，标记掌握</button>
+                    </div> : <div className="question-content" key={`question-${item.id}`}>
+                        {currentQuestionType === 'B' ? <><button className="listen-button" onClick={() => playTTS(item.word)} aria-label="播放听音题"><Headphones size={36} strokeWidth={1.6} /></button><h2 className="listen-title">听一听，想一想。</h2><p className="listening-hint">点击播放，回想单词和含义</p></> : <div className="question-word-row"><h2 className="question-word">{item.word}</h2>{currentQuestionType === 'C' && <button className="sound-button" onClick={() => playTTS(item.word)} aria-label="播放单词发音"><Volume2 size={23} strokeWidth={1.7} /></button>}</div>}
+                        {currentQuestionType !== 'B' && <span className="word-divider" />}
+                        {currentQuestionType !== 'B' && (showReviewSentence && currentQuestionType !== 'B' && item.sentence ? <blockquote className="question-sentence">{item.sentence}</blockquote> : <p className="recall-prompt">{currentQuestionType === 'A' ? '试着说出它的读音，再核对答案。' : '先在心里回想，再看看答案。'}</p>)}
+                    </div>}
+                </article>
+                <div className="review-dock">
+                    {isFlipped ? <div className="rating-buttons">
+                        <button className="rating-button forget" onClick={() => score('forget')} disabled={isReviewBusy}><span>忘记</span><small>再学一遍<kbd>{reviewShortcutForget}</kbd></small></button>
+                        <button className="rating-button hard" onClick={() => score('hard')} disabled={isReviewBusy}><span>模糊</span><small>再巩固<kbd>{reviewShortcutHard}</kbd></small></button>
+                        <button className="rating-button easy" onClick={() => score('easy')} disabled={isReviewBusy}><span>记得<Check size={17} /></span><small>继续<kbd>{reviewShortcutEasy}</kbd></small></button>
+                    </div> : <button className="reveal-button" onClick={() => setIsFlipped(true)} disabled={isReviewBusy}>显示答案<ArrowRight size={19} /><kbd>空格</kbd></button>}
+                    <div className="review-dock-footer"><span className="desktop-shortcuts"><kbd>空格</kbd> 显示答案 · {reviewShortcutForget} 忘记 · {reviewShortcutHard} 模糊 · {reviewShortcutEasy} 记得</span><span className="mobile-gesture-hint">{isFlipped ? '左滑忘记 · 右滑记得' : '轻点词卡或按钮，查看答案'}</span><button className="undo-button" onClick={handleUndoReview} disabled={isReviewBusy || !reviewHistory.length}><RotateCcw size={15} />撤销<span className="undo-extra">上一步</span></button></div>
                 </div>
-            ))}
-        </div>
-    );
-}
-
-function FocusReviewList({ records }) {
-    if (records.length === 0) {
-        return <div className="text-center py-10 text-slate-400">还没有进入重点巩固的单词。</div>;
-    }
-
-    return (
-        <div className="grid gap-3">
-            {records.map(record => (
-                <div key={record.id} className="bg-white p-4 rounded-xl border border-rose-100 shadow-sm flex justify-between items-center gap-4">
-                    <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                            <Zap className="w-4 h-4 text-rose-500" />
-                            <h3 className="font-bold text-slate-800">{record.word}</h3>
-                            <span className="text-[11px] px-2 py-0.5 rounded-full bg-rose-100 text-rose-700">
-                                严重度 {record.forgetCount * 2 + record.hardCount}
-                            </span>
-                        </div>
-                        <div className="text-xs text-slate-500 mt-1 flex flex-wrap gap-3">
-                            <span>下次复习 {record.nextReviewDate}</span>
-                            <span>忘记 {record.forgetCount}</span>
-                            <span>模糊 {record.hardCount}</span>
-                            <span>恢复连胜 {record.focusRecoveryStreak}/2</span>
-                        </div>
-                    </div>
-                </div>
-            ))}
-        </div>
-    );
-}
-
-export default function ReviewView({
-    currentQuestionType,
-    currentReviewItem,
-    focusBoardRecords,
-    focusQueueCount,
-    handleMaster,
-    handleReviewResult,
-    handleUndoReview,
-    isFlipped,
-    isPartial,
-    mainQueueCount,
-    onResurrect,
-    playTTS,
-    records,
-    reviewHistory,
-    reviewQueue,
-    reviewTab,
-    showReviewSentence,
-    setIsFlipped,
-    setReviewTab,
-    updateRecord
-}) {
-    const masteredCount = records.filter(record => record.mastered).length;
-
-    return (
-        <div className="space-y-6">
-            <div className="flex justify-center">
-                <div className="bg-slate-200 p-1 rounded-full flex">
-                    <button
-                        onClick={() => setReviewTab('queue')}
-                        className={`px-6 py-2 rounded-full text-sm font-bold transition ${reviewTab === 'queue' ? 'bg-white text-indigo-700 shadow' : 'text-slate-500'}`}
-                    >
-                        今日任务 ({mainQueueCount})
-                    </button>
-                    <button
-                        onClick={() => setReviewTab('focus')}
-                        className={`px-6 py-2 rounded-full text-sm font-bold transition ${reviewTab === 'focus' ? 'bg-white text-rose-600 shadow' : 'text-slate-500'}`}
-                    >
-                        重点巩固 ({focusQueueCount})
-                    </button>
-                    <button
-                        onClick={() => setReviewTab('mastered')}
-                        disabled={isPartial}
-                        title={isPartial ? '完整数据加载后可查看荣誉殿堂' : undefined}
-                        className={`px-6 py-2 rounded-full text-sm font-bold transition ${reviewTab === 'mastered' ? 'bg-white text-amber-600 shadow' : 'text-slate-500'} ${isPartial ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                        荣誉殿堂 ({masteredCount})
-                    </button>
-                </div>
-            </div>
-
-            {(reviewTab === 'queue' || reviewTab === 'focus') && (
-                <div className="max-w-md mx-auto relative min-h-[500px]">
-                    {reviewQueue.length === 0 ? (
-                        reviewTab === 'queue' ? (
-                            <div className="text-center py-20 bg-white rounded-3xl shadow-sm border border-slate-100">
-                                <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4 text-4xl">🎉</div>
-                                <h3 className="text-xl font-bold text-slate-800">今日任务已完成！</h3>
-                                <p className="text-slate-500 mt-2">休息一下，明天继续加油。</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-5">
-                                <div className="text-center py-14 bg-white rounded-3xl shadow-sm border border-rose-100">
-                                    <div className="w-20 h-20 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4 text-4xl">🔥</div>
-                                    <h3 className="text-xl font-bold text-slate-800">今天没有重点巩固任务</h3>
-                                    <p className="text-slate-500 mt-2">下面是已进入重点巩固的单词列表，后续到期会在这里继续复习。</p>
-                                </div>
-                                <FocusReviewList records={focusBoardRecords} />
-                            </div>
-                        )
-                    ) : (
-                        <div>
-                            <div className="flex items-center justify-between text-xs text-slate-400 mb-2 px-2">
-                                <span>Queue: {reviewQueue.length} left</span>
-                                <div className="flex items-center gap-2">
-                                    {currentReviewItem.sameDayReviewTarget > 0 && currentReviewItem.sameDayReviewDate && (
-                                        <span className="px-2 py-1 rounded-full bg-amber-100 text-amber-700 font-semibold">
-                                            今日巩固 {currentReviewItem.sameDayReviewDone}/{currentReviewItem.sameDayReviewTarget}
-                                        </span>
-                                    )}
-                                    <span>
-                                        Stage: {currentReviewItem.reviewStage} {currentReviewItem.needsReadingPractice ? '(强化)' : ''}
-                                    </span>
-                                </div>
-                            </div>
-                            <div
-                                onClick={event => {
-                                    if (event.target.closest('button, input, textarea, select, a')) return;
-                                    setIsFlipped(previous => !previous);
-                                }}
-                                className="relative w-full h-[420px] sm:h-[450px] bg-white rounded-3xl shadow-2xl border border-slate-100 cursor-pointer overflow-hidden"
-                            >
-                                <div className={`absolute inset-0 overflow-y-auto custom-scrollbar ${isFlipped ? 'hidden' : 'block'}`}>
-                                    <div className="min-h-full flex flex-col items-center justify-center p-6 sm:p-8">
-                                        <div className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-4">
-                                            {currentQuestionType === 'A' ? '👀 看字读音' : currentQuestionType === 'B' ? '👂 听音辨义' : '🧠 回忆意思'}
-                                        </div>
-                                        {(currentQuestionType === 'A' || currentQuestionType === 'C') && (
-                                            <h2 className="text-4xl font-black text-slate-800 text-center mb-6 break-words">{currentReviewItem.word}</h2>
-                                        )}
-                                        {currentQuestionType === 'B' && (
-                                            <div className="text-center">
-                                                <button
-                                                    onClick={event => {
-                                                        event.stopPropagation();
-                                                        playTTS(currentReviewItem.reading || currentReviewItem.word);
-                                                    }}
-                                                    className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4 hover:bg-indigo-200 transition"
-                                                >
-                                                    <Volume2 className="w-8 h-8" />
-                                                </button>
-                                                <p className="text-2xl font-bold text-slate-600 break-words">{currentReviewItem.reading || '(无读音数据)'}</p>
-                                            </div>
-                                        )}
-                                        {showReviewSentence && (
-                                            <ReviewSentenceBlock
-                                                className="w-full mt-6"
-                                                sentence={currentReviewItem.sentence}
-                                                textClassName="text-sm text-slate-600 text-left"
-                                            />
-                                        )}
-                                        <p className="text-slate-400 text-sm mt-8 animate-pulse">
-                                            点击翻转查看答案
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <div className={`absolute inset-0 flex-col p-5 sm:p-6 overflow-y-auto custom-scrollbar ${!isFlipped ? 'hidden' : 'flex'}`}>
-                                    <div className="flex justify-between items-start gap-4 mb-4">
-                                        <div className="min-w-0">
-                                            <h3 className="text-2xl font-bold text-indigo-900 break-words">{currentReviewItem.word}</h3>
-                                            <div className="flex items-center gap-2 mt-1">
-                                                <span className="text-lg text-indigo-600 font-mono break-words min-w-0">{currentReviewItem.reading}</span>
-                                                <button
-                                                    onClick={event => {
-                                                        event.stopPropagation();
-                                                        playTTS(currentReviewItem.word);
-                                                    }}
-                                                >
-                                                    <Volume2 className="w-4 h-4 text-slate-400 hover:text-indigo-600" />
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <button
-                                            onClick={event => {
-                                                event.stopPropagation();
-                                                handleMaster(currentReviewItem.id);
-                                            }}
-                                            className="shrink-0 bg-amber-100 text-amber-600 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 hover:bg-amber-200"
-                                        >
-                                            <GraduationCap className="w-3 h-3" /> 毕业
-                                        </button>
-                                    </div>
-                                    <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar text-sm text-slate-600 space-y-4 pr-1">
-                                        <ReviewSentenceBlock
-                                            sentence={currentReviewItem.sentence}
-                                            scrollable={false}
-                                        />
-                                        <MeaningSection key={`${currentReviewItem.id}:${currentReviewItem.revision}:${currentReviewItem.clientMutationId || ''}`} record={currentReviewItem} onUpdate={updateRecord} />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {isFlipped && (
-                                <div className="flex gap-3 mt-6 justify-center animate-in slide-in-from-bottom-4">
-                                    <button onClick={() => handleReviewResult('forget')} className="flex-1 bg-red-100 hover:bg-red-200 text-red-700 py-3 rounded-xl font-bold flex flex-col items-center">
-                                        <span className="text-lg">😰</span>
-                                        <span className="text-xs">忘记了</span>
-                                    </button>
-                                    <button onClick={() => handleReviewResult('hard')} className="flex-1 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 py-3 rounded-xl font-bold flex flex-col items-center">
-                                        <span className="text-lg">🤔</span>
-                                        <span className="text-xs">模糊</span>
-                                    </button>
-                                    <button onClick={() => handleReviewResult('easy')} className="flex-1 bg-green-100 hover:bg-green-200 text-green-700 py-3 rounded-xl font-bold flex flex-col items-center">
-                                        <span className="text-lg">😎</span>
-                                        <span className="text-xs">记得</span>
-                                    </button>
-                                </div>
-                            )}
-
-                            <div className="flex justify-end mt-4 h-8">
-                                {reviewHistory.length > 0 && (
-                                    <button onClick={handleUndoReview} className="text-slate-400 hover:text-indigo-600 text-sm flex items-center gap-1 transition-colors">
-                                        <RotateCcw className="w-4 h-4" /> 撤销上一步
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {reviewTab === 'mastered' && <MasteredList records={records} onResurrect={onResurrect} />}
-        </div>
-    );
+            </>}
+        </div><aside className="review-aside"><h3>学习提示</h3><p>先试着回忆这个单词的意思。想一想它在句子中的含义，再点「显示答案」查看。</p><p>主动回忆，比直接看答案更有助于记忆。</p><div className="aside-rule" /><p className="aside-note">不确定也没关系。<br />如实评分，我们会安排它再次出现。</p></aside></div>
+    </section>;
 }

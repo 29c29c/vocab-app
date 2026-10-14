@@ -2,7 +2,6 @@ import {
     BookOpen,
     Clock3,
     History,
-    Plus,
     RefreshCw,
     Save,
     Sparkles
@@ -223,50 +222,49 @@ export default function InputView({
     saveStatus
 }) {
     return (
-        <div className="max-w-2xl mx-auto space-y-6">
-            <div className="bg-white rounded-2xl shadow-xl border border-indigo-50 p-8 animate-in zoom-in-95">
-                <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-2">
-                    <Plus className="w-6 h-6 text-indigo-600" /> 新词录入
-                </h2>
+        <div className="input-layout">
+            <div className="input-form-panel">
+                <h2>留下这个词。</h2>
+                <p className="input-intro">保存后自动查询词典，配置 AI 后会补充解析。</p>
                 <form onSubmit={onSubmit} className="space-y-5">
                     <div>
-                        <label className="text-sm font-bold text-slate-500">日期</label>
+                        <label htmlFor="entry-date" className="text-sm font-bold text-slate-500">日期</label>
                         <input
-                            type="date"
+                            id="entry-date" type="date"
                             value={inputDate}
                             onChange={event => onInputDateChange(event.target.value)}
                             className="w-full mt-1 p-3 bg-slate-50 rounded-xl border-slate-200 focus:ring-2 ring-indigo-500 outline-none"
                         />
                     </div>
                     <div>
-                        <label className="text-sm font-bold text-slate-500">
+                        <label htmlFor="entry-word" className="text-sm font-bold text-slate-500">
                             单词 <span className="text-red-500">*</span>
                         </label>
                         <input
                             type="text"
-                            value={inputWord}
+                            id="entry-word" required autoComplete="off" autoCapitalize="none" spellCheck={false} value={inputWord}
                             onChange={event => onInputWordChange(event.target.value)}
-                            placeholder="Enter word..."
+                            placeholder="遇见了什么新词？"
                             className="w-full mt-1 p-3 bg-slate-50 rounded-xl border-slate-200 focus:ring-2 ring-indigo-500 outline-none text-lg font-bold text-indigo-900"
                         />
                     </div>
                     <div>
-                        <label className="text-sm font-bold text-slate-500">句子 (可选)</label>
+                        <label htmlFor="entry-sentence" className="text-sm font-bold text-slate-500">句子 (可选)</label>
                         <textarea
-                            rows="3"
+                            id="entry-sentence" rows="3"
                             value={inputSentence}
                             onChange={event => onInputSentenceChange(event.target.value)}
-                            placeholder="Example sentence..."
+                            placeholder="保留遇见它的那句话…"
                             className="w-full mt-1 p-3 bg-slate-50 rounded-xl border-slate-200 focus:ring-2 ring-indigo-500 outline-none resize-none text-base"
                         />
                     </div>
                     <div>
-                        <label className="text-sm font-bold text-slate-500">中文释义 (可选)</label>
+                        <label htmlFor="entry-meaning" className="text-sm font-bold text-slate-500">中文释义 (可选)</label>
                         <input
                             type="text"
-                            value={inputMeaning}
+                            id="entry-meaning" value={inputMeaning}
                             onChange={event => onInputMeaningChange(event.target.value)}
-                            placeholder="Manual meaning..."
+                            placeholder="写下你理解的意思…"
                             className="w-full mt-1 p-3 bg-slate-50 rounded-xl border-slate-200 focus:ring-2 ring-indigo-500 outline-none text-base"
                         />
                     </div>
@@ -281,10 +279,11 @@ export default function InputView({
                 </form>
             </div>
 
+            {!latestLookupRecord && recentManualEntries.length === 0 && <aside className="input-empty"><BookOpen size={34} strokeWidth={1.4} /><h3>从遇见，到记住。</h3><p>记录单词，也留下它的语境。<br />这里会显示词典结果和最近的录入。</p><div className="aside-rule" /><small>英语 / 日语词典 · 间隔复习 · 云端保存</small></aside>}
             {(latestLookupRecord || recentManualEntries.length > 0) && (
-                <div className="space-y-5">
+                <div className="input-results">
                     {latestLookupRecord && (
-                        <section className="bg-white rounded-2xl shadow-xl border border-amber-100 p-6">
+                        <section className="bg-white rounded-2xl shadow-xl border border-amber-100 p-6 lookup-result">
                             <div className="flex flex-wrap items-start justify-between gap-3">
                                 <div>
                                     <p className="text-sm font-bold text-amber-500 flex items-center gap-2">

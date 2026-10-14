@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Layers, Lock, RefreshCw, User, X } from 'lucide-react';
+import { ArrowRight, BookOpen, Check, Lock, RefreshCw, User, X } from 'lucide-react';
 
 const API_BASE = '/api';
 
@@ -10,6 +10,7 @@ export default function AuthScreen({ onLogin }) {
     const [inviteCode, setInviteCode] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [notice, setNotice] = useState('');
 
     const handleSubmit = async event => {
         event.preventDefault();
@@ -32,7 +33,7 @@ export default function AuthScreen({ onLogin }) {
             if (isLogin) {
                 onLogin(data.token, data.username);
             } else {
-                alert('注册成功！请登录');
+                setNotice('注册成功，用新账号登录即可开始学习。');
                 setIsLogin(true);
                 setInviteCode('');
             }
@@ -44,93 +45,21 @@ export default function AuthScreen({ onLogin }) {
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-            <div className="max-w-md w-full bg-white rounded-2xl shadow-xl overflow-hidden">
-                <div className="bg-indigo-600 p-8 text-center">
-                    <Layers className="w-12 h-12 text-yellow-300 mx-auto mb-4" />
-                    <h1 className="text-2xl font-bold text-white">
-                        记忆飞船 <span className="text-xs opacity-70 bg-white/20 px-2 py-1 rounded">Cloud</span>
-                    </h1>
-                    <p className="text-indigo-200 mt-2 text-sm">你的云端单词基地</p>
-                </div>
-                <div className="p-8">
-                    <h2 className="text-xl font-bold text-slate-800 mb-6 text-center">
-                        {isLogin ? '欢迎回来' : '创建新账号'}
-                    </h2>
-                    {error && (
-                        <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg flex items-center gap-2">
-                            <X className="w-4 h-4" /> {error}
-                        </div>
-                    )}
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-slate-500 mb-1">用户名</label>
-                            <div className="relative">
-                                <User className="w-5 h-5 text-slate-400 absolute left-3 top-3" />
-                                <input
-                                    type="text"
-                                    required
-                                    value={username}
-                                    onChange={event => setUsername(event.target.value)}
-                                    className="w-full pl-10 p-3 bg-slate-50 border rounded-xl focus:ring-2 ring-indigo-500 outline-none"
-                                    placeholder="请输入用户名"
-                                />
-                            </div>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-500 mb-1">密码</label>
-                            <div className="relative">
-                                <Lock className="w-5 h-5 text-slate-400 absolute left-3 top-3" />
-                                <input
-                                    type="password"
-                                    required
-                                    value={password}
-                                    onChange={event => setPassword(event.target.value)}
-                                    className="w-full pl-10 p-3 bg-slate-50 border rounded-xl focus:ring-2 ring-indigo-500 outline-none"
-                                    placeholder="••••••••"
-                                />
-                            </div>
-                        </div>
-                        {!isLogin && (
-                            <div className="animate-in slide-in-from-top-2">
-                                <label className="block text-sm font-medium text-slate-500 mb-1">
-                                    邀请码 <span className="text-xs text-indigo-500">(防机器人)</span>
-                                </label>
-                                <div className="relative">
-                                    <Check className="w-5 h-5 text-slate-400 absolute left-3 top-3" />
-                                    <input
-                                        type="text"
-                                        value={inviteCode}
-                                        onChange={event => setInviteCode(event.target.value)}
-                                        className="w-full pl-10 p-3 bg-slate-50 border border-indigo-100 rounded-xl focus:ring-2 ring-indigo-500 outline-none"
-                                        placeholder="请输入邀请码（管理员首次初始化可留空）"
-                                    />
-                                </div>
-                            </div>
-                        )}
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold shadow-lg shadow-indigo-200 transition disabled:opacity-50 flex justify-center items-center gap-2"
-                        >
-                            {loading && <RefreshCw className="w-4 h-4 animate-spin" />}
-                            {isLogin ? '登录' : '注册'}
-                        </button>
-                    </form>
-                    <div className="mt-6 text-center text-sm">
-                        <span className="text-slate-400">{isLogin ? '还没有账号？' : '已有账号？'}</span>
-                        <button
-                            onClick={() => {
-                                setIsLogin(!isLogin);
-                                setError('');
-                            }}
-                            className="text-indigo-600 font-bold ml-1 hover:underline"
-                        >
-                            {isLogin ? '去注册' : '去登录'}
-                        </button>
-                    </div>
-                </div>
-            </div>
+        <div className="auth-page">
+            <div className="auth-story"><div className="brand"><BookOpen size={32} strokeWidth={1.6} /><span>记忆飞船</span></div><div className="auth-story-content"><h1>遇见一个词。<br />留住一个世界。</h1><p>从阅读中的偶然相遇，到下一次自然而然地想起。<br />建立自己的词库，让记忆慢慢发生。</p><div className="auth-sample"><span>serendipity</span><small>意外发现美好事物的幸运</small><div className="word-divider" /><p>A little serendipity brought us together.</p></div></div><small className="auth-story-footer">记录 · 回想 · 掌握</small></div>
+            <div className="auth-form-area"><div className="auth-mobile-brand brand"><BookOpen size={28} /><span>记忆飞船</span></div><div className="auth-form">
+                <h2>{isLogin ? '欢迎回来。' : '开始你的积累。'}</h2><p className="auth-subtitle">{isLogin ? '你的词库和学习进度，都在这里。' : '创建账号，让每一个新词都有归处。'}</p>
+                {error && <p className="form-error" role="alert"><X size={16} />{error}</p>}
+                {notice && <p className="form-notice" role="status"><Check size={16} />{notice}</p>}
+                <form onSubmit={handleSubmit}>
+                    <label htmlFor="auth-username">用户名</label><div className="auth-field"><User size={18} /><input id="auth-username" type="text" required autoComplete="username" autoCapitalize="none" value={username} onChange={event => setUsername(event.target.value)} placeholder="请输入用户名" /></div>
+                    <label htmlFor="auth-password">密码</label><div className="auth-field"><Lock size={18} /><input id="auth-password" type="password" required autoComplete={isLogin ? 'current-password' : 'new-password'} value={password} onChange={event => setPassword(event.target.value)} placeholder="请输入密码" /></div>
+                    {!isLogin && <><label htmlFor="auth-invite">邀请码</label><div className="auth-field"><Check size={18} /><input id="auth-invite" type="text" autoComplete="off" value={inviteCode} onChange={event => setInviteCode(event.target.value)} placeholder="请输入邀请码" /></div><p className="invite-hint">由管理员提供，管理员首次初始化可留空。</p></>}
+                    <button className="primary-button auth-submit" type="submit" disabled={loading}>{loading ? <RefreshCw size={18} className="animate-spin" /> : null}{loading ? '请稍候…' : isLogin ? '登录，继续学习' : '创建账号'}{!loading && <ArrowRight size={18} />}</button>
+                </form>
+                <p className="auth-switch">{isLogin ? '还没有账号？' : '已有账号？'}<button onClick={() => { setIsLogin(!isLogin); setError(''); setNotice(''); }}>{isLogin ? '创建账号' : '返回登录'}</button></p>
+                <p className="auth-footnote">英语 / 日语词典 · 间隔复习 · 云端同步</p>
+            </div></div>
         </div>
     );
 }

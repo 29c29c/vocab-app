@@ -121,16 +121,16 @@ export default function ArticleAnalyzer({ settings, requestAiPrompt, onAddWords,
     };
 
     return (
-        <div className="bg-white rounded-2xl shadow-xl border border-indigo-50 flex flex-col h-[calc(100vh-140px)] animate-in zoom-in-95">
+        <div className="article-tool tool-surface">
             <div className="p-4 border-b flex justify-between items-center bg-slate-50/50 rounded-t-2xl">
                 <h2 className="font-bold text-slate-800 flex items-center gap-2">
                     <FileText className="w-5 h-5 text-indigo-600" /> 文章智能解析
                 </h2>
-                <button onClick={onCancel} className="p-2 hover:bg-slate-200 rounded-full">
+                <button onClick={onCancel} aria-label="关闭阅读提词" className="p-2 hover:bg-slate-200 rounded-full">
                     <X className="w-5 h-5 text-slate-500" />
                 </button>
             </div>
-            <div className="flex-1 overflow-hidden flex flex-col p-6">
+            <div className="article-body flex-1 min-h-0 overflow-hidden flex flex-col p-6">
                 {step === 'input' ? (
                     <div className="flex flex-col h-full max-w-3xl mx-auto w-full gap-4">
                         <div className="bg-indigo-50 p-4 rounded-xl text-indigo-800 text-sm flex gap-2">
