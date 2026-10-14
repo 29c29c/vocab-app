@@ -33,6 +33,8 @@ export default function ReviewView({ currentQuestionType, currentReviewItem, foc
         const dx = event.clientX - start.x;
         const dy = event.clientY - start.y;
         const action = getReviewGesture({ deltaX: dx, deltaY: dy, isRevealed: isFlipped });
+        // A drag or scroll must not also toggle the answer through its click event.
+        if (Math.abs(dx) > 10 || Math.abs(dy) > 10) suppressClick.current = true;
         if (!action) return;
         suppressClick.current = true;
         if (action === 'reveal') setIsFlipped(true);
@@ -49,22 +51,23 @@ export default function ReviewView({ currentQuestionType, currentReviewItem, foc
             </> : <>
                 <div className="review-progress"><div className="progress-track" role="progressbar" aria-label="本轮完成进度" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}><div style={{ width: `${progress}%` }} /></div><span>已完成 {completedCount}<i />待复习 {reviewQueue.length}</span></div>
                 <article className={`flashcard ${isFlipped ? 'is-revealed' : ''}`} aria-label={isFlipped ? '单词答案' : label} aria-busy={isReviewBusy} tabIndex={0}
-                    onKeyDown={event => { if (event.key === 'Enter' && event.target === event.currentTarget && !isReviewBusy) setIsFlipped(true); }}
+                    onKeyDown={event => { if (event.key === 'Enter' && event.target === event.currentTarget && !isReviewBusy) setIsFlipped(previous => !previous); }}
                     onPointerDown={event => {
                         suppressClick.current = false;
-                        if (event.pointerType !== 'touch' || event.target.closest('button, input, textarea, select, a, summary') || window.getSelection()?.toString()) return;
+                        pointerStart.current = null;
+                        if (event.pointerType !== 'touch' || event.target.closest('button, input, textarea, select, a, summary, .meaning-editor') || window.getSelection()?.toString()) return;
                         pointerStart.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
                         event.currentTarget.setPointerCapture(event.pointerId);
                     }} onPointerUp={finishGesture} onPointerCancel={() => { pointerStart.current = null; }}
                     onClick={event => {
                         if (suppressClick.current) { suppressClick.current = false; return; }
-                        if (!isFlipped && !isReviewBusy && !event.target.closest('button') && !window.getSelection()?.toString()) setIsFlipped(true);
+                        if (!isReviewBusy && !event.target.closest('button, input, textarea, select, a, summary, .meaning-editor') && !window.getSelection()?.toString()) setIsFlipped(previous => !previous);
                     }}>
                     <div className="flashcard-meta"><span>{isFlipped ? '核对答案' : label}</span><span>{item.sameDayReviewTarget > 0 ? `今日巩固 ${item.sameDayReviewDone}/${item.sameDayReviewTarget}` : `阶段 ${item.reviewStage}${item.needsReadingPractice ? ' · 读音强化' : ''}`}</span></div>
                     {isFlipped ? <div className="answer-content" key={`answer-${item.id}`}>
                         <div className="answer-word-row"><div className="min-w-0"><h2 className="answer-word">{item.word}</h2>{item.reading && <p className="word-reading">{item.reading}</p>}</div><button className="sound-button" onClick={() => playTTS(item.word)} aria-label="播放单词发音"><Volume2 size={22} /></button></div>
                         {item.sentence && <blockquote className="answer-sentence">{item.sentence}</blockquote>}
-                        <MeaningSection key={`${item.id}:${item.revision}:${item.clientMutationId || ''}`} record={item} onUpdate={updateRecord} compact />
+                        <MeaningSection key={`${item.id}:${item.revision}:${item.clientMutationId || ''}`} record={item} onUpdate={updateRecord} compact expandAnalysisOnMobile />
                         <button className="master-button" onClick={() => handleMaster(item.id)} disabled={isReviewBusy}><GraduationCap size={16} />这个词已熟悉，标记掌握</button>
                     </div> : <div className="question-content" key={`question-${item.id}`}>
                         {currentQuestionType === 'B' ? <><button className="listen-button" onClick={() => playTTS(item.word)} aria-label="播放听音题"><Headphones size={36} strokeWidth={1.6} /></button><h2 className="listen-title">听一听，想一想。</h2><p className="listening-hint">点击播放，回想单词和含义</p></> : <div className="question-word-row"><h2 className="question-word">{item.word}</h2>{currentQuestionType === 'C' && <button className="sound-button" onClick={() => playTTS(item.word)} aria-label="播放单词发音"><Volume2 size={23} strokeWidth={1.7} /></button>}</div>}

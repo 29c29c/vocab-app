@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import useVocabularyApp from './hooks/useVocabularyApp.js';
 import AppHeader from './components/AppHeader.jsx';
@@ -22,6 +22,7 @@ const DICTATION_SCOPE_OPTIONS = [
 ];
 
 export default function SmartVocabularyApp() {
+    const [syncDetailsOpen, setSyncDetailsOpen] = useState(false);
     const {
         token,
         currentUser,
@@ -187,6 +188,9 @@ export default function SmartVocabularyApp() {
                 provider={provider}
                 recordsCount={recordCount}
                 dataStatus={dataStatus}
+                dataError={dataError}
+                actionError={actionError}
+                onShowSyncDetails={() => setSyncDetailsOpen(true)}
                 pendingCount={pendingCount}
                 saveError={effectiveSaveError}
                 activeWriteCount={activeWriteCount}
@@ -202,10 +206,13 @@ export default function SmartVocabularyApp() {
 
             <main id="main-content" className="app-main">
                 {view !== 'review' && <WorkspaceHeading view={view} />}
-                {(dataStatus === 'cached' || dataStatus === 'partial' || dataStatus === 'error' || effectiveSaveStatus === 'error' || effectiveSaveStatus === 'conflict' || actionError) && (
-                    <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900" role="status">
+                {syncDetailsOpen && <Dialog title="数据与同步状态" onClose={() => setSyncDetailsOpen(false)}>
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900" role="status">
                         <div>{dataStatus === 'cached' ? '正在使用本地数据，服务器核对尚未完成。' : dataStatus === 'partial' ? `复习数据已就绪，完整单词列表仍在加载。${dataError ? `加载失败：${dataError}` : ''}` : dataStatus === 'error' ? `单词加载失败：${dataError}` : ''}</div>
                         {effectiveSaveError && <div>{effectiveSaveError}</div>}
+                        {['loading', 'idle'].includes(dataStatus) && <div>正在加载单词并核对服务器数据。</div>}
+                        {effectiveSaveStatus === 'saving' && <div>{pendingCount + activeWriteCount} 项操作正在同步到服务器。</div>}
+                        {dataStatus === 'success' && effectiveSaveStatus === 'saved' && <div>已保存到服务器，单词数据已核对。</div>}
                         {actionError && <div>{actionError} <button type="button" onClick={() => setActionError('')} className="underline">关闭提示</button></div>}
                         {directWriteError && (
                             <button type="button" onClick={() => setDirectWriteError('')} className="mt-1 underline">已核对服务器记录，关闭提示</button>
@@ -221,7 +228,7 @@ export default function SmartVocabularyApp() {
                             )}
                         </div>
                     </div>
-                )}
+                </Dialog>}
 
                 <Suspense fallback={<div className="empty-state" role="status">正在准备学习工具…</div>}>
                 {view === 'writing' && (

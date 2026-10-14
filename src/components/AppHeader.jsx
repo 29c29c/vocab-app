@@ -37,6 +37,9 @@ export default function AppHeader({
     provider,
     recordsCount,
     dataStatus,
+    dataError,
+    actionError,
+    onShowSyncDetails,
     pendingCount,
     activeWriteCount,
     saveError,
@@ -68,9 +71,17 @@ export default function AppHeader({
         { id: 'writing', label: '写作润色', note: '修改草稿，收藏地道表达', icon: PenTool }
     ];
     const selectView = id => { onSetView(id); setToolsOpen(false); };
-    const saveText = saveStatus === 'saved' ? '已保存到服务器'
-        : saveStatus === 'saving' ? `${pendingCount + activeWriteCount} 项待同步`
-            : saveStatus === 'conflict' ? '同步冲突，需处理' : '同步失败';
+    const syncPending = saveStatus !== 'saved' || ['cached', 'partial', 'error'].includes(dataStatus) || Boolean(actionError);
+    const saveText = saveStatus === 'conflict' ? '同步冲突，需处理'
+        : saveStatus === 'error' ? '同步失败，查看详情'
+            : actionError ? '操作失败，查看详情'
+                : saveStatus === 'saving' ? `${pendingCount + activeWriteCount} 项待同步`
+                    : dataStatus === 'cached' ? '本地数据 · 待核对'
+                        : dataStatus === 'partial' ? '复习已就绪 · 词库加载中'
+                            : dataStatus === 'error' ? '词库加载失败'
+                                : ['loading', 'idle'].includes(dataStatus) ? '正在核对服务器' : '已保存到服务器';
+    const syncDetail = dataStatus === 'cached' ? '正在使用本地数据，服务器核对尚未完成。'
+        : dataStatus === 'partial' ? '复习数据已就绪，完整单词列表仍在加载。' : '';
     const countText = dataStatus === 'loading' || dataStatus === 'idle' ? '正在加载词库'
         : dataStatus === 'error' ? '词库加载失败'
             : recordsCount === null ? '复习数据已就绪' : `${recordsCount} 个词条${dataStatus === 'cached' ? ' · 本地待核对' : dataStatus === 'partial' ? ' · 复习先行' : ''}`;
@@ -102,9 +113,9 @@ export default function AppHeader({
             <header className="workspace-bar">
                 <div className="mobile-brand"><BookOpen size={27} strokeWidth={1.6} /><span>记忆飞船</span></div>
                 <span className="workspace-bar-title">{VIEW_TITLES[view]}</span>
-                <div className={`sync-status ${saveStatus !== 'saved' ? 'sync-pending' : ''}`} role="status" title={saveError || countText}>
-                    {saveStatus === 'saved' ? <Check size={15} /> : <Cloud size={15} />}<span>{saveText}</span>
-                </div>
+                <button type="button" className={`sync-status ${syncPending ? 'sync-pending' : ''}`} onClick={onShowSyncDetails} aria-haspopup="dialog" aria-label={`${saveText}，查看数据与同步状态`} title={[syncDetail, saveError, dataError, actionError, countText].filter(Boolean).join(' ')}>
+                    {syncPending || ['loading', 'idle'].includes(dataStatus) ? <Cloud size={15} /> : <Check size={15} />}<span role="status">{saveText}</span>
+                </button>
                 <button className="icon-button mobile-settings" onClick={onToggleSettings} aria-label="设置"><Settings size={21} /></button>
             </header>
             <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".xlsx, .xls" hidden />
