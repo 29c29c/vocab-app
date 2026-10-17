@@ -67,7 +67,7 @@ export default function ReviewView({ currentQuestionType, currentReviewItem, foc
                     {isFlipped ? <div className="answer-content" key={`answer-${item.id}`}>
                         <div className="answer-word-row"><div className="min-w-0"><h2 className="answer-word">{item.word}</h2>{item.reading && <p className="word-reading">{item.reading}</p>}</div><button className="sound-button" onClick={() => playTTS(item.word)} aria-label="播放单词发音"><Volume2 size={22} /></button></div>
                         {item.sentence && <blockquote className="answer-sentence">{item.sentence}</blockquote>}
-                        <MeaningSection key={`${item.id}:${item.revision}:${item.clientMutationId || ''}`} record={item} onUpdate={updateRecord} compact expandAnalysisOnMobile />
+                        <MeaningSection key={`${item.id}:${item.revision}:${item.clientMutationId || ''}`} record={item} onUpdate={updateRecord} compact defaultAnalysisOpen />
                         <button className="master-button" onClick={() => handleMaster(item.id)} disabled={isReviewBusy}><GraduationCap size={16} />这个词已熟悉，标记掌握</button>
                     </div> : <div className="question-content" key={`question-${item.id}`}>
                         {currentQuestionType === 'B' ? <><button className="listen-button" onClick={() => playTTS(item.word)} aria-label="播放听音题"><Headphones size={36} strokeWidth={1.6} /></button><h2 className="listen-title">听一听，想一想。</h2><p className="listening-hint">点击播放，回想单词和含义</p></> : <div className="question-word-row"><h2 className="question-word">{item.word}</h2>{currentQuestionType === 'C' && <button className="sound-button" onClick={() => playTTS(item.word)} aria-label="播放单词发音"><Volume2 size={23} strokeWidth={1.7} /></button>}</div>}

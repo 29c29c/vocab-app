@@ -4,12 +4,12 @@ import { BookOpen, Check, Edit3, Sparkles, X } from 'lucide-react';
 function MarkdownRenderer({ content }) {
     return <div className="analysis-text">{content.split('\n').filter(line => line.trim()).map((line, index) => <p key={index}>{line.split(/(\*\*.*?\*\*)/g).map((part, i) => part.startsWith('**') && part.endsWith('**') ? <strong key={i}>{part.slice(2, -2)}</strong> : part)}</p>)}</div>;
 }
-export default function MeaningSection({ record, onUpdate, compact = false, expandAnalysisOnMobile = false }) {
+export default function MeaningSection({ record, onUpdate, compact = false, defaultAnalysisOpen = false }) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(record.customMeaning || '');
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
-    const [analysisOpen, setAnalysisOpen] = useState(() => expandAnalysisOnMobile && window.matchMedia('(max-width: 767px)').matches);
+    const [analysisOpen, setAnalysisOpen] = useState(defaultAnalysisOpen);
     const save = async () => {
         if (saving) return;
         setSaving(true);

@@ -267,7 +267,16 @@ button svg { flex-shrink: 0; }
 .invite-hint { font-size: 10px; color: var(--muted); margin-top: 8px; }
 .auth-mobile-brand { display: none; }
 @keyframes card-arrive { from { opacity: .35; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-@media (min-width: 1500px) { .app-main { padding-top: 48px; }.review-layout { grid-template-columns: minmax(0, 770px) 190px; gap: 55px; }.flashcard { min-height: 415px; }.question-content { min-height: 340px; } }
+/* Keep desktop cards and the action area stable while revealing or changing words. */
+@media (min-width: 768px) {
+    .flashcard { height: var(--review-card-height, 380px); min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+    .flashcard-meta { flex-shrink: 0; }
+    .flashcard > .question-content, .flashcard > .answer-content { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-gutter: stable; }
+    .flashcard > .question-content { justify-content: safe center; }
+    .question-content > * { flex-shrink: 0; }
+    .review-dock .reveal-button { min-height: 76px; }
+}
+@media (min-width: 1500px) { .app-main { padding-top: 48px; }.review-layout { grid-template-columns: minmax(0, 770px) 190px; gap: 55px; }.flashcard { --review-card-height: 415px; }.question-content { min-height: 340px; } }
 @media (max-width: 1180px) { :root { --sidebar: 210px; }.app-main { padding: 30px 32px 50px; }.workspace-bar { padding: 0 32px; }.review-layout { gap: 26px; grid-template-columns: minmax(0, 1fr) 150px; }.review-aside { font-size: 11px; }.review-intro h1 { font-size: 27px; }.word-list-head, .word-list-row { grid-template-columns: minmax(0, 1fr) 110px 90px 100px; gap: 10px; }.input-layout { gap: 22px; }.input-form-panel { padding: 23px; } }
 @media (max-width: 1000px) { .review-layout { display: block; max-width: 710px; margin: 0 auto; }.review-aside { display: none; }.review-intro { max-width: 710px; margin-left: auto; margin-right: auto; }.input-layout { grid-template-columns: 1fr; max-width: 670px; margin: 0 auto; }.input-empty { padding: 20px 10px; }.input-empty .aside-rule { display: none; }.list-toolbar { flex-wrap: wrap; gap: 8px; }.list-filters { width: 100%; }.word-list-head, .word-list-row { grid-template-columns: minmax(0, 1fr) 100px 95px; }.word-list-head span:nth-child(3), .word-list-row > .mode-button { display: none; } }
 @media (max-width: 767px) {
@@ -391,7 +400,7 @@ button svg { flex-shrink: 0; }
     .review-intro h1 { font-size: 28px; }
     .review-intro p { margin-top: 7px; }
     .review-progress { padding-top: 18px; padding-bottom: 18px; }
-    .flashcard { min-height: 305px; }
+    .flashcard { --review-card-height: 305px; }
     .question-content { min-height: 244px; padding-top: 30px; padding-bottom: 25px; }
     .app-sidebar { padding-top: 25px; }
     .app-sidebar .brand { margin-bottom: 28px; }
