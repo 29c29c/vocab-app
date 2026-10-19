@@ -25,6 +25,9 @@ export const DEFAULT_APP_SETTINGS = {
     dsBaseUrl: defaultPreset.baseUrl || '',
     dsModel: defaultPreset.model || '',
     provider: DEFAULT_AI_PROVIDER,
+    masteredReviewEnabled: false,
+    masteredReviewDailyCount: 10,
+    masteredReviewMinDays: 30,
     reviewShortcutEasy: 'D',
     reviewShortcutForget: 'A',
     reviewShortcutHard: 'S',
@@ -43,6 +46,14 @@ export function normalizeAppSettings(input) {
             : (preset.baseUrl ?? ''),
         dsModel: normalizeAiModel(provider, source.dsModel || preset.model || DEFAULT_APP_SETTINGS.dsModel),
         provider,
+        masteredReviewEnabled: typeof source.masteredReviewEnabled === 'boolean'
+            ? source.masteredReviewEnabled : DEFAULT_APP_SETTINGS.masteredReviewEnabled,
+        masteredReviewDailyCount: Number.isInteger(source.masteredReviewDailyCount)
+            && source.masteredReviewDailyCount >= 1 && source.masteredReviewDailyCount <= 1000
+            ? source.masteredReviewDailyCount : DEFAULT_APP_SETTINGS.masteredReviewDailyCount,
+        masteredReviewMinDays: Number.isInteger(source.masteredReviewMinDays)
+            && source.masteredReviewMinDays >= 0 && source.masteredReviewMinDays <= 36500
+            ? source.masteredReviewMinDays : DEFAULT_APP_SETTINGS.masteredReviewMinDays,
         reviewShortcutEasy: normalizeShortcutKey(source.reviewShortcutEasy, DEFAULT_APP_SETTINGS.reviewShortcutEasy),
         reviewShortcutForget: normalizeShortcutKey(source.reviewShortcutForget, DEFAULT_APP_SETTINGS.reviewShortcutForget),
         reviewShortcutHard: normalizeShortcutKey(source.reviewShortcutHard, DEFAULT_APP_SETTINGS.reviewShortcutHard),

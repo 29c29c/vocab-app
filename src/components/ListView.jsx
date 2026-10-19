@@ -10,7 +10,7 @@ export default function ListView({ filteredRecords, listFilterDate, listSearchQu
         <div className="word-list-head"><span>单词 / 释义</span><span>下次复习</span><span>学习模式</span><span>操作</span></div>
         {filteredRecords.map(record => <article className="word-list-row" key={record.id}>
             <button className="word-list-main" onClick={() => onOpenModal(record)} aria-label={`查看 ${record.word} 的详情`}><strong>{record.word}</strong><span>{record.reading}</span><p>{record.customMeaning || record.dictionaryMeaning || record.sentence || '暂无释义'}</p></button>
-            <div className="word-list-date"><span className={record.mastered ? 'mastered-label' : ''}>{record.mastered ? '已掌握' : record.nextReviewDate}</span><small>{record.mastered ? '记忆已沉淀' : `阶段 ${record.reviewStage}`}</small></div>
+            <div className="word-list-date"><span className={record.mastered ? 'mastered-label' : ''}>{record.mastered ? '已掌握' : record.nextReviewDate}</span><small>{record.mastered ? '记忆已沉淀' : record.isMasteredReview ? '已掌握复习' : `阶段 ${record.reviewStage}`}</small></div>
             <button className={`mode-button ${record.needsReadingPractice ? 'reinforced' : ''}`} onClick={() => onToggleReadingPractice(record.id)} aria-label={`${record.word}：${record.needsReadingPractice ? '切换为标准模式' : '切换为强化模式'}`}>{record.needsReadingPractice ? <Zap size={14} /> : <BookOpen size={14} />}{record.needsReadingPractice ? '读音强化' : '标准模式'}</button>
             <div className="word-list-actions"><button className="secondary-button" onClick={() => onOpenModal(record)}>详情</button><button className="icon-button delete-button" onClick={() => onDelete(record.id)} aria-label={`删除 ${record.word}`}><Trash2 size={16} /></button></div>
         </article>)}

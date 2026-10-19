@@ -1,4 +1,5 @@
 import { KeyRound, Plus, RefreshCw, Save, ShieldCheck, Trash2 } from 'lucide-react';
+import { useState } from 'react';
 
 import { AI_PROVIDER_OPTIONS } from '../shared/aiProviders.js';
 
@@ -7,6 +8,23 @@ const REVIEW_SHORTCUT_FIELDS = [
     { key: 'reviewShortcutHard', label: '模糊', hint: '评分' },
     { key: 'reviewShortcutEasy', label: '记得', hint: '评分' }
 ];
+
+function NumberSetting({ label, value, min, max, onChange }) {
+    const [draft, setDraft] = useState(String(value));
+    const commit = () => {
+        const number = draft.trim() === '' ? value : Number(draft);
+        const next = Number.isFinite(number) ? Math.max(min, Math.min(max, Math.trunc(number))) : value;
+        setDraft(String(next));
+        if (next !== value) onChange(next);
+    };
+    return <label className="block text-xs text-slate-500">
+        {label}
+        <input type="number" min={min} max={max} step="1" value={draft}
+            onChange={event => setDraft(event.target.value)} onBlur={commit}
+            onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); }}
+            className="w-full mt-2 p-2 rounded bg-white border border-slate-200 text-slate-800 text-base" />
+    </label>;
+}
 
 export default function SettingsPanel({
     adminStatusChecked,
@@ -38,6 +56,9 @@ export default function SettingsPanel({
     reviewShortcutEasy,
     reviewShortcutForget,
     reviewShortcutHard,
+    masteredReviewEnabled,
+    masteredReviewDailyCount,
+    masteredReviewMinDays,
     showReviewSentence
 }) {
     const apiKeyStatusClassName = apiKeySaveStatus === 'error'
@@ -162,6 +183,29 @@ export default function SettingsPanel({
                     </div>
                 </div>
             </div>
+
+            <section className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4" aria-label="已掌握回归复习设置">
+                <div className="flex items-center justify-between gap-4">
+                    <div>
+                        <h3 className="text-sm font-bold text-slate-800">已掌握回归复习</h3>
+                        <p className="text-xs text-slate-500 mt-1">每天北京时间凌晨 4 点，服务器自动随机抽取并加入今日任务，无需打开页面。未完成的词会累积。</p>
+                    </div>
+                    <button type="button" aria-label="开启已掌握回归复习" aria-pressed={masteredReviewEnabled}
+                        onClick={() => onUpdateSetting('masteredReviewEnabled', !masteredReviewEnabled)}
+                        className={`relative inline-flex h-7 w-14 shrink-0 items-center rounded-full transition ${masteredReviewEnabled ? 'bg-emerald-500' : 'bg-slate-600'}`}>
+                        <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${masteredReviewEnabled ? 'translate-x-8' : 'translate-x-1'}`} />
+                    </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                    <NumberSetting key={`count-${masteredReviewDailyCount}`} label="每日回归数量（个）"
+                        value={masteredReviewDailyCount} min={1} max={1000}
+                        onChange={value => onUpdateSetting('masteredReviewDailyCount', value)} />
+                    <NumberSetting key={`days-${masteredReviewMinDays}`} label="掌握后至少等待（天）"
+                        value={masteredReviewMinDays} min={0} max={36500}
+                        onChange={value => onUpdateSetting('masteredReviewMinDays', value)} />
+                </div>
+                <p className="text-xs text-slate-500 mt-3 leading-relaxed">设置在下一次凌晨 4 点抽取时生效。首次点记住即回到已掌握；模糊或忘记则按阶段 7 的规则继续复习，并移除回归标记。关闭只停止后续抽取，已入队的词会保留。</p>
+            </section>
 
             {(isAdmin || inviteCodesLoading || !adminStatusChecked) && (
                 <div className="border-t border-slate-200 pt-5 space-y-4">

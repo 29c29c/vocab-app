@@ -389,6 +389,10 @@ export default function useVocabularyApp() {
     }, [accountId, authEpoch, handleLogout, token]);
 
     useEffect(() => {
+        if (token && accountId) void recordSyncRef.current?.refresh();
+    }, [accountId, reviewDate, token]);
+
+    useEffect(() => {
         if (!token || !accountId) return undefined;
         let cancelled = false;
         const controller = new AbortController();
@@ -990,6 +994,7 @@ export default function useVocabularyApp() {
         try {
             if (!await updateRecord({
                 ...clearFocusReviewFields(clearSameDayReviewFields(r)),
+                isMasteredReview: false,
                 mastered: true,
                 masteredDate: getTodayDateString()
             })) return;
@@ -1011,6 +1016,7 @@ export default function useVocabularyApp() {
         const r = recordsRef.current.find(record => record.id === id);
         updateRecord({
             ...clearFocusReviewFields(clearSameDayReviewFields(r)),
+            isMasteredReview: false,
             mastered: false,
             masteredDate: null,
             reviewStage: 0,

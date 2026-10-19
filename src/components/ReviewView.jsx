@@ -63,7 +63,7 @@ export default function ReviewView({ currentQuestionType, currentReviewItem, foc
                         if (suppressClick.current) { suppressClick.current = false; return; }
                         if (!isReviewBusy && !event.target.closest('button, input, textarea, select, a, summary, .meaning-editor') && !window.getSelection()?.toString()) setIsFlipped(previous => !previous);
                     }}>
-                    <div className="flashcard-meta"><span>{isFlipped ? '核对答案' : label}</span><span>{item.sameDayReviewTarget > 0 ? `今日巩固 ${item.sameDayReviewDone}/${item.sameDayReviewTarget}` : `阶段 ${item.reviewStage}${item.needsReadingPractice ? ' · 读音强化' : ''}`}</span></div>
+                    <div className="flashcard-meta"><span>{isFlipped ? '核对答案' : label}</span><span>{item.isMasteredReview ? '已掌握复习' : item.sameDayReviewTarget > 0 ? `阶段 ${item.reviewStage} · 今日巩固 ${item.sameDayReviewDone}/${item.sameDayReviewTarget}` : `阶段 ${item.reviewStage}${item.needsReadingPractice ? ' · 读音强化' : ''}`}</span></div>
                     {isFlipped ? <div className="answer-content" key={`answer-${item.id}`}>
                         <div className="answer-word-row"><div className="min-w-0"><h2 className="answer-word">{item.word}</h2>{item.reading && <p className="word-reading">{item.reading}</p>}</div><button className="sound-button" onClick={() => playTTS(item.word)} aria-label="播放单词发音"><Volume2 size={22} /></button></div>
                         {item.sentence && <blockquote className="answer-sentence">{item.sentence}</blockquote>}

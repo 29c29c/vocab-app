@@ -53,9 +53,11 @@ export async function insertRecord(record) {
             focus_last_review_date,
             mastered,
             mastered_date,
+            is_mastered_review,
+            mastered_review_date,
             needs_reading_practice,
             created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             record.userId,
             record.date,
@@ -79,6 +81,8 @@ export async function insertRecord(record) {
             record.focusLastReviewDate,
             record.mastered,
             record.masteredDate,
+            record.isMasteredReview,
+            record.masteredReviewDate,
             record.needsReadingPractice,
             record.createdAt
         ]
@@ -108,6 +112,7 @@ export async function updateRecordById({ id, userId, record, revision, mutationI
             focus_last_review_date = ?,
             mastered = ?,
             mastered_date = ?,
+            is_mastered_review = ?,
             custom_meaning = ?,
             dictionary_meaning = ?,
             ai_analysis = ?,
@@ -129,6 +134,7 @@ export async function updateRecordById({ id, userId, record, revision, mutationI
             record.focusLastReviewDate,
             record.mastered,
             record.masteredDate,
+            record.isMasteredReview,
             record.customMeaning,
             record.dictionaryMeaning,
             record.aiAnalysis,
@@ -191,9 +197,11 @@ export async function replaceUserRecords(userId, records, expectedEtag, getDataE
                 focus_last_review_date,
                 mastered,
                 mastered_date,
+                is_mastered_review,
+                mastered_review_date,
                 needs_reading_practice,
                 created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         );
 
         try {
@@ -221,6 +229,8 @@ export async function replaceUserRecords(userId, records, expectedEtag, getDataE
                     record.focusLastReviewDate,
                     record.mastered,
                     record.masteredDate,
+                    record.isMasteredReview,
+                    record.masteredReviewDate,
                     record.needsReadingPractice,
                     record.createdAt
                 ]);

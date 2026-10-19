@@ -6,10 +6,11 @@ export const FOCUS_RECOVERY_STREAK_TARGET = 2;
 const FOCUS_RECOVERY_INTERVAL_DAYS = 3;
 const STANDARD_REVIEW_INTERVALS = [1, 2, 4, 7, 15, 30, 60];
 const READING_REVIEW_INTERVALS = [1, 1, 1, 1, 2, 1, 4, 4, 7, 8, 15, 15];
+export const MASTERED_REVIEW_STAGE = 7;
 const REVIEW_PROGRESS_FIELDS = [
     'reviewStage', 'nextReviewDate', 'sameDayReviewDate', 'sameDayReviewTarget',
     'sameDayReviewDone', 'forgetCount', 'hardCount', 'isFocusReview',
-    'focusRecoveryStreak', 'focusLastReviewDate', 'mastered', 'masteredDate'
+    'focusRecoveryStreak', 'focusLastReviewDate', 'mastered', 'masteredDate', 'isMasteredReview'
 ];
 const BEIJING_UTC_OFFSET_HOURS = 8;
 const REVIEW_RESET_HOUR_BEIJING = 4;
@@ -110,6 +111,8 @@ export function normalizeReviewRecord(record, today = getTodayDateString()) {
         forgetCount: Number.isInteger(record.forgetCount) ? record.forgetCount : 0,
         hardCount: Number.isInteger(record.hardCount) ? record.hardCount : 0,
         isFocusReview: Boolean(record.isFocusReview),
+        isMasteredReview: Boolean(record.isMasteredReview),
+        masteredReviewDate: record.masteredReviewDate ?? null,
         mastered: Boolean(record.mastered),
         masteredDate: record.masteredDate || null,
         needsReadingPractice: Boolean(record.needsReadingPractice),
@@ -243,6 +246,24 @@ export function maybeExitFocusReview(record) {
 }
 
 export function scheduleReviewResult(record, quality, today = getTodayDateString()) {
+    if (record.isMasteredReview) {
+        const returningRecord = {
+            ...clearFocusReviewFields(clearSameDayReviewFields(record)),
+            isMasteredReview: false,
+            mastered: false,
+            masteredDate: null,
+            reviewStage: MASTERED_REVIEW_STAGE
+        };
+        if (quality === 'easy') {
+            return {
+                record: { ...returningRecord, mastered: true, masteredDate: today },
+                shouldRequeue: false
+            };
+        }
+        // The special label belongs to the first rating only. Failures then use
+        // the same penalties and focus thresholds as ordinary stage-seven reviews.
+        record = returningRecord;
+    }
     const performanceRecord = applyReviewPerformance(record, quality, today);
 
     if (quality === 'forget' || quality === 'hard') {

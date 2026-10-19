@@ -135,6 +135,15 @@ async function initializeDatabase() {
             jti TEXT PRIMARY KEY,
             expires_at INTEGER NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS mastered_review_runs (
+            user_id INTEGER NOT NULL,
+            review_date TEXT NOT NULL,
+            selected_count INTEGER NOT NULL DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (user_id, review_date),
+            FOREIGN KEY (user_id) REFERENCES users (id)
+        );
     `);
 
     await ensureColumn('users', 'settings', 'TEXT');
@@ -151,6 +160,8 @@ async function initializeDatabase() {
     await ensureColumn('records', 'focus_last_review_date', 'TEXT');
     await ensureColumn('records', 'revision', 'INTEGER NOT NULL DEFAULT 0');
     await ensureColumn('records', 'last_mutation_id', 'TEXT');
+    await ensureColumn('records', 'is_mastered_review', 'INTEGER NOT NULL DEFAULT 0');
+    await ensureColumn('records', 'mastered_review_date', 'TEXT');
     await ensureColumn('invite_codes', 'used_count', 'INTEGER DEFAULT 0');
     await ensureColumn('invite_codes', 'is_active', 'INTEGER DEFAULT 1');
     await ensureColumn('invite_codes', 'created_by_user_id', 'INTEGER');
@@ -162,6 +173,12 @@ async function initializeDatabase() {
 
         CREATE INDEX IF NOT EXISTS idx_records_user_next_review_date
         ON records(user_id, next_review_date);
+
+        CREATE INDEX IF NOT EXISTS idx_records_user_mastered_review_date
+        ON records(user_id, mastered_review_date);
+
+        CREATE INDEX IF NOT EXISTS idx_records_user_mastered_date
+        ON records(user_id, mastered, mastered_date);
 
         CREATE INDEX IF NOT EXISTS idx_invite_codes_code
         ON invite_codes(code);

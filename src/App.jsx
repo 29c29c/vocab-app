@@ -201,6 +201,9 @@ export default function SmartVocabularyApp() {
                 saveStatus={effectiveSaveStatus}
                 showSettings={showSettings}
                 showReviewSentence={settings.showReviewSentence}
+                masteredReviewEnabled={settings.masteredReviewEnabled}
+                masteredReviewDailyCount={settings.masteredReviewDailyCount}
+                masteredReviewMinDays={settings.masteredReviewMinDays}
                 view={view}
             />
 

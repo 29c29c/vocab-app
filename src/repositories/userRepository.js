@@ -1,4 +1,4 @@
-import { get, run } from '../db/index.js';
+import { all, get, run } from '../db/index.js';
 
 export async function findUserByUsername(username) {
     return get('SELECT * FROM users WHERE username = ?', [username]);
@@ -13,6 +13,10 @@ export async function createUser({ username, passwordHash }) {
 
 export async function findUserSettingsById(userId) {
     return get('SELECT settings FROM users WHERE id = ?', [userId]);
+}
+
+export async function findAllUserSettings() {
+    return all('SELECT id, settings FROM users');
 }
 
 export async function updateUserSettings(userId, settingsJson) {

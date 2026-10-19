@@ -54,6 +54,7 @@ export function validateUpdateRecordPayload(body) {
         'forgetCount',
         'hardCount',
         'isFocusReview',
+        'isMasteredReview',
         'mastered',
         'masteredDate',
         'needsReadingPractice',
@@ -78,6 +79,8 @@ export function validateUpdateRecordPayload(body) {
         forgetCount: readInteger(input.forgetCount, '忘记次数', { max: 100000, min: 0 }),
         hardCount: readInteger(input.hardCount, '模糊次数', { max: 100000, min: 0 }),
         isFocusReview: readBooleanLike(input.isFocusReview, '重点巩固状态'),
+        isMasteredReview: input.isMasteredReview === undefined ? false
+            : readBooleanLike(input.isMasteredReview, '已掌握复习标记'),
         mastered: readBooleanLike(input.mastered, '掌握状态'),
         masteredDate: readNullableString(input.masteredDate, '掌握日期', { maxLength: 64 }),
         needsReadingPractice: readBooleanLike(input.needsReadingPractice, '朗读练习标记'),

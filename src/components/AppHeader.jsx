@@ -54,6 +54,9 @@ export default function AppHeader({
     settingsStatus,
     showSettings,
     showReviewSentence,
+    masteredReviewEnabled,
+    masteredReviewDailyCount,
+    masteredReviewMinDays,
     onToggleSettings,
     onUpdateSetting,
     view
@@ -167,6 +170,9 @@ export default function AppHeader({
                     reviewShortcutForget={reviewShortcutForget}
                     reviewShortcutHard={reviewShortcutHard}
                     showReviewSentence={showReviewSentence}
+                    masteredReviewEnabled={masteredReviewEnabled}
+                    masteredReviewDailyCount={masteredReviewDailyCount}
+                    masteredReviewMinDays={masteredReviewMinDays}
                 />
 
             </Dialog>}

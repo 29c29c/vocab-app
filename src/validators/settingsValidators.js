@@ -2,6 +2,7 @@ import { AppError } from '../utils/http.js';
 import { isSupportedAiProvider } from '../shared/aiProviders.js';
 import {
     readBooleanLike,
+    readInteger,
     pickAllowedKeys,
     readOptionalString
 } from './helpers.js';
@@ -12,6 +13,9 @@ export function validateSettingsPayload(body) {
         'dsBaseUrl',
         'dsModel',
         'provider',
+        'masteredReviewEnabled',
+        'masteredReviewDailyCount',
+        'masteredReviewMinDays',
         'reviewShortcutEasy',
         'reviewShortcutForget',
         'reviewShortcutHard',
@@ -32,6 +36,12 @@ export function validateSettingsPayload(body) {
             ? undefined
             : (readOptionalString(input.dsModel, '模型名称', { maxLength: 120 }) || ''),
         provider,
+        masteredReviewEnabled: input.masteredReviewEnabled === undefined ? undefined
+            : readBooleanLike(input.masteredReviewEnabled, '已掌握回归复习'),
+        masteredReviewDailyCount: input.masteredReviewDailyCount === undefined ? undefined
+            : readInteger(input.masteredReviewDailyCount, '每日回归数量', { min: 1, max: 1000 }),
+        masteredReviewMinDays: input.masteredReviewMinDays === undefined ? undefined
+            : readInteger(input.masteredReviewMinDays, '掌握后等待天数', { min: 0, max: 36500 }),
         reviewShortcutEasy: input.reviewShortcutEasy === undefined
             ? undefined
             : readOptionalString(input.reviewShortcutEasy, '记得快捷键', { maxLength: 8 }),

@@ -37,6 +37,8 @@ function normalizeLegacyRecord(record) {
         'forgetCount',
         'hardCount',
         'isFocusReview',
+        'isMasteredReview',
+        'masteredReviewDate',
         'mastered',
         'masteredDate',
         'needsReadingPractice',
@@ -65,6 +67,9 @@ function normalizeLegacyRecord(record) {
         forgetCount: input.forgetCount === undefined ? 0 : readInteger(input.forgetCount, '忘记次数', { max: 100000, min: 0 }),
         hardCount: input.hardCount === undefined ? 0 : readInteger(input.hardCount, '模糊次数', { max: 100000, min: 0 }),
         isFocusReview: input.isFocusReview === undefined ? false : readBooleanLike(input.isFocusReview, '重点巩固状态'),
+        isMasteredReview: input.isMasteredReview === undefined ? false
+            : readBooleanLike(input.isMasteredReview, '已掌握复习标记'),
+        masteredReviewDate: readNullableString(input.masteredReviewDate, '回归抽取日期', { maxLength: 64 }),
         mastered: input.mastered === undefined ? false : readBooleanLike(input.mastered, '掌握状态'),
         masteredDate: readNullableString(input.masteredDate, '掌握日期', { maxLength: 64 }),
         needsReadingPractice: input.needsReadingPractice === undefined

@@ -20,6 +20,8 @@ function vocabulary(overrides = {}) {
         needsReadingPractice: true,
         mastered: false,
         masteredDate: null,
+        isMasteredReview: false,
+        masteredReviewDate: null,
         forgetCount: 0,
         hardCount: 0,
         ...EMPTY_FOCUS_REVIEW,
@@ -227,3 +229,52 @@ test('review days reset at Beijing 04:00 and fixed intervals work across year bo
     const failed = grade(focused, 'forget', '2026-12-31');
     assert.equal(finishPenalty(failed, 3, '2026-12-31').nextReviewDate, '2027-01-01');
 });
+
+test('a recalled word immediately returns to mastery on its first easy rating', () => {
+    const recalled = vocabulary({
+        isMasteredReview: true, masteredReviewDate: TODAY, masteredDate: '2026-08-01',
+        forgetCount: 9, hardCount: 9, needsReadingPractice: true
+    });
+    const result = scheduleReviewResult(recalled, 'easy', TODAY);
+    assert.equal(result.shouldRequeue, false);
+    assert.equal(result.record.mastered, true);
+    assert.equal(result.record.masteredDate, TODAY);
+    assert.equal(result.record.isMasteredReview, false);
+    assert.equal(result.record.isFocusReview, false);
+    assert.equal(result.record.masteredReviewDate, TODAY);
+    assert.deepEqual(restoreReviewProgress(result.record, recalled), recalled);
+});
+
+for (const [quality, target, stage] of [['hard', 2, 7], ['forget', 3, 0]]) {
+    test(`a recalled word's first ${quality} removes the label and uses ordinary stage-seven rules`, () => {
+        const recalled = vocabulary({ isMasteredReview: true, masteredDate: '2026-08-01', needsReadingPractice: false });
+        const failed = scheduleReviewResult(recalled, quality, TODAY);
+        assert.equal(failed.shouldRequeue, true);
+        assert.equal(failed.record.isMasteredReview, false);
+        assert.equal(failed.record.mastered, false);
+        assert.equal(failed.record.masteredDate, null);
+        assert.equal(failed.record.reviewStage, stage);
+        assert.equal(failed.record.sameDayReviewTarget, target);
+        let record = failed.record;
+        for (let i = 0; i < target; i++) record = grade(record, 'easy');
+        assert.equal(record.isMasteredReview, false);
+        assert.equal(record.mastered, false);
+        assert.equal(record.nextReviewDate, '2026-10-20');
+        assert.deepEqual(restoreReviewProgress(failed.record, recalled), recalled);
+    });
+
+    test(`a recalled word's first ${quality} can enter focus and needs two later daily first successes`, () => {
+        const recalled = vocabulary({ isMasteredReview: true, forgetCount: 2, hardCount: 4 });
+        const failed = grade(recalled, quality);
+        assert.equal(failed.isMasteredReview, false);
+        assert.equal(failed.reviewStage, 7);
+        const completed = finishPenalty(failed, target);
+        const first = grade(completed, 'easy', '2026-10-20');
+        assert.equal(first.focusRecoveryStreak, 1);
+        assert.equal(first.isFocusReview, true);
+        const recovered = grade(first, 'easy', '2026-10-23');
+        assert.equal(recovered.reviewStage, 7);
+        assert.equal(recovered.isMasteredReview, false);
+        assert.equal(recovered.isFocusReview, false);
+    });
+}

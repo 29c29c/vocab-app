@@ -170,6 +170,31 @@ async function until(predicate) {
     throw new Error('condition was not reached');
 }
 
+test('frontend loading and refreshing only read records and never request a recall draw', async () => {
+    const storage = createMemoryStorage(null);
+    const originalFetch = globalThis.fetch;
+    const requests = [];
+    globalThis.fetch = async (url, options) => {
+        requests.push({ url, method: options.method || 'GET' });
+        return new Response(JSON.stringify(url.endsWith('/bootstrap') ? { count: 0, records: [] } : []));
+    };
+    const sync = new RecordSync({
+        account: '1', token: 'first', storage,
+        onRecords: () => {}, onDataStatus: () => {}, onSaveStatus: () => {}, onUnauthorized: () => {}
+    });
+    try {
+        await sync.ready;
+        await sync.refresh();
+        await sync.refresh();
+        assert.ok(requests.length >= 2);
+        assert.ok(requests.every(request => request.method === 'GET'));
+        assert.ok(requests.every(request => ['/api/data', '/api/data/bootstrap'].includes(request.url)));
+    } finally {
+        sync.stop();
+        globalThis.fetch = originalFetch;
+    }
+});
+
 test('offline review remains queued across a restart and is isolated by account', async () => {
     const initial = { id: 7, word: 'alpha', reviewStage: 0, nextReviewDate: '2026-10-08', revision: 0 };
     const storage = createMemoryStorage(initial);
