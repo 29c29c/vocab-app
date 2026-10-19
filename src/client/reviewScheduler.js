@@ -3,6 +3,14 @@ export const HARD_SAME_DAY_TARGET = 2;
 export const FOCUS_FORGET_THRESHOLD = 3;
 export const FOCUS_HARD_THRESHOLD = 5;
 export const FOCUS_RECOVERY_STREAK_TARGET = 2;
+const FOCUS_RECOVERY_INTERVAL_DAYS = 3;
+const STANDARD_REVIEW_INTERVALS = [1, 2, 4, 7, 15, 30, 60];
+const READING_REVIEW_INTERVALS = [1, 1, 1, 1, 2, 1, 4, 4, 7, 8, 15, 15];
+const REVIEW_PROGRESS_FIELDS = [
+    'reviewStage', 'nextReviewDate', 'sameDayReviewDate', 'sameDayReviewTarget',
+    'sameDayReviewDone', 'forgetCount', 'hardCount', 'isFocusReview',
+    'focusRecoveryStreak', 'focusLastReviewDate', 'mastered', 'masteredDate'
+];
 const BEIJING_UTC_OFFSET_HOURS = 8;
 const REVIEW_RESET_HOUR_BEIJING = 4;
 const HOUR_IN_MS = 60 * 60 * 1000;
@@ -25,6 +33,17 @@ function formatUtcDateString(date) {
     const month = String(date.getUTCMonth() + 1).padStart(2, '0');
     const day = String(date.getUTCDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+}
+
+function addReviewDays(today, days) {
+    const date = new Date(`${today}T00:00:00Z`);
+    date.setUTCDate(date.getUTCDate() + days);
+    return formatUtcDateString(date);
+}
+
+function getNextReviewInterval(record) {
+    const table = record.needsReadingPractice ? READING_REVIEW_INTERVALS : STANDARD_REVIEW_INTERVALS;
+    return table[record.reviewStage] ?? null;
 }
 
 function getBeijingShiftedDate(date = new Date(), shiftHours = 0) {
@@ -74,6 +93,12 @@ export function clearFocusReviewFields(record) {
         ...record,
         ...EMPTY_FOCUS_REVIEW
     };
+}
+
+export function restoreReviewProgress(latest, snapshot) {
+    const restored = { ...latest };
+    REVIEW_PROGRESS_FIELDS.forEach(field => { restored[field] = snapshot[field]; });
+    return restored;
 }
 
 export function normalizeReviewRecord(record, today = getTodayDateString()) {
@@ -139,7 +164,7 @@ export function startSameDayReview(record, quality, today = getTodayDateString()
     return {
         ...record,
         nextReviewDate: today,
-        reviewStage: quality === 'forget' ? 0 : record.reviewStage,
+        reviewStage: quality === 'forget' && !record.isFocusReview ? 0 : record.reviewStage,
         sameDayReviewDate: today,
         sameDayReviewDone: 0,
         sameDayReviewTarget: quality === 'forget' ? FORGET_SAME_DAY_TARGET : HARD_SAME_DAY_TARGET
@@ -162,7 +187,7 @@ export function progressSameDayReview(record, today = getTodayDateString()) {
         completed: true,
         record: {
             ...clearSameDayReviewFields(updatedRecord),
-            nextReviewDate: getFutureDateString(1)
+            nextReviewDate: addReviewDays(today, 1)
         }
     };
 }
@@ -183,15 +208,10 @@ export function applyReviewPerformance(record, quality, today = getTodayDateStri
         updatedRecord.hardCount += 1;
     }
 
-    if (updatedRecord.isFocusReview && updatedRecord.focusLastReviewDate !== today) {
-        updatedRecord.focusRecoveryStreak = quality === 'easy'
-            ? updatedRecord.focusRecoveryStreak + 1
-            : 0;
-        updatedRecord.focusLastReviewDate = today;
-    }
-
+    const failed = quality === 'forget' || quality === 'hard';
     if (
         !updatedRecord.isFocusReview &&
+        failed &&
         (
             updatedRecord.forgetCount >= FOCUS_FORGET_THRESHOLD ||
             updatedRecord.hardCount >= FOCUS_HARD_THRESHOLD
@@ -200,6 +220,15 @@ export function applyReviewPerformance(record, quality, today = getTodayDateStri
         updatedRecord.isFocusReview = true;
         updatedRecord.focusRecoveryStreak = 0;
         updatedRecord.focusLastReviewDate = null;
+    }
+
+    // The failure that enters focus is also that day's first review.
+    // Completing its same-day penalty must never count as recovery.
+    if (updatedRecord.isFocusReview && (failed || updatedRecord.focusLastReviewDate !== today)) {
+        updatedRecord.focusRecoveryStreak = !failed && !isSameDayReviewActive(record, today)
+            ? updatedRecord.focusRecoveryStreak + 1
+            : 0;
+        updatedRecord.focusLastReviewDate = today;
     }
 
     return updatedRecord;
@@ -211,6 +240,39 @@ export function maybeExitFocusReview(record) {
     }
 
     return clearFocusReviewFields(record);
+}
+
+export function scheduleReviewResult(record, quality, today = getTodayDateString()) {
+    const performanceRecord = applyReviewPerformance(record, quality, today);
+
+    if (quality === 'forget' || quality === 'hard') {
+        return { record: startSameDayReview(performanceRecord, quality, today), shouldRequeue: true };
+    }
+
+    if (isSameDayReviewActive(performanceRecord, today)) {
+        const result = progressSameDayReview(performanceRecord, today);
+        return { record: result.record, shouldRequeue: !result.completed };
+    }
+
+    const clearedRecord = clearSameDayReviewFields(performanceRecord);
+    if (performanceRecord.isFocusReview) {
+        const recoveredRecord = maybeExitFocusReview(clearedRecord);
+        const interval = recoveredRecord.isFocusReview
+            ? FOCUS_RECOVERY_INTERVAL_DAYS
+            : (getNextReviewInterval(record) ?? 1);
+        return {
+            record: { ...recoveredRecord, nextReviewDate: addReviewDays(today, interval) },
+            shouldRequeue: false
+        };
+    }
+
+    const interval = getNextReviewInterval(record);
+    return {
+        record: interval === null
+            ? { ...clearFocusReviewFields(clearedRecord), mastered: true, masteredDate: today }
+            : { ...clearedRecord, reviewStage: record.reviewStage + 1, nextReviewDate: addReviewDays(today, interval) },
+        shouldRequeue: false
+    };
 }
 
 export function getRandomRequeueIndex(restLength) {

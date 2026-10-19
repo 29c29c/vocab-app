@@ -5,21 +5,18 @@ import { getAccountId } from '../client/authIdentity.js';
 import { requestDictionaryLookup } from '../client/dictionaryApi.js';
 import { DEFAULT_APP_SETTINGS, hasAiConfig, normalizeAppSettings } from '../client/defaultSettings.js';
 import {
-    applyReviewPerformance,
     getCalendarDateString,
     getFutureDateString,
     getMillisecondsUntilNextReviewReset,
     clearSameDayReviewFields,
     clearFocusReviewFields,
     getTodayDateString,
-    isSameDayReviewActive,
-    maybeExitFocusReview,
     normalizeReviewRecord,
-    progressSameDayReview,
     reconcileReviewQueue,
     reinsertReviewItem,
-    sortFocusRecords,
-    startSameDayReview
+    restoreReviewProgress,
+    scheduleReviewResult,
+    sortFocusRecords
 } from '../client/reviewScheduler.js';
 import { readSettingsCache, writeSettingsCache } from '../client/settingsCache.js';
 import { RecordSync } from '../client/recordSync.js';
@@ -85,18 +82,6 @@ const getRecordSortTimestamp = record => {
     const timestamp = new Date(rawValue).getTime();
     return Number.isNaN(timestamp) ? 0 : timestamp;
 };
-
-const REVIEW_PROGRESS_FIELDS = [
-    'reviewStage', 'nextReviewDate', 'sameDayReviewDate', 'sameDayReviewTarget',
-    'sameDayReviewDone', 'forgetCount', 'hardCount', 'isFocusReview',
-    'focusRecoveryStreak', 'focusLastReviewDate', 'mastered', 'masteredDate'
-];
-
-function restoreReviewProgress(latest, snapshot) {
-    const restored = { ...latest };
-    REVIEW_PROGRESS_FIELDS.forEach(field => { restored[field] = snapshot[field]; });
-    return restored;
-}
 
 // --- 主应用逻辑 ---
 export default function useVocabularyApp() {
@@ -886,13 +871,6 @@ export default function useVocabularyApp() {
         return 'other';
     };
 
-    const getNextReviewInterval = (stage, isReinforce) => {
-        const standard = [1, 2, 4, 7, 15, 30, 60];
-        const reinforce = [1, 1, 1, 1, 2, 1, 4, 4, 7, 8, 15, 15];
-        const table = isReinforce ? reinforce : standard;
-        return stage >= table.length ? null : table[stage];
-    };
-
     const getQuestionType = (record) => {
         if (!record.needsReadingPractice) return 'C';
         const stage = record.reviewStage || 0;
@@ -957,30 +935,10 @@ export default function useVocabularyApp() {
         reviewActionPendingRef.current = true;
         setIsReviewBusy(true);
         const record = recordsRef.current.find(item => item.id === currentReviewItem.id) || currentReviewItem;
-        const isReinforce = record.needsReadingPractice;
         const today = getTodayDateString();
         try {
-            const performanceRecord = applyReviewPerformance(record, quality, today);
-            let updatedRecord;
-            let queueAction = 'remove';
-
-            if (quality === 'forget' || quality === 'hard') {
-                updatedRecord = startSameDayReview(performanceRecord, quality, today);
-                queueAction = updatedRecord.isFocusReview && reviewTab !== 'focus' ? 'remove' : 'reinsert';
-            } else if (isSameDayReviewActive(performanceRecord, today)) {
-                const { completed, record: progressedRecord } = progressSameDayReview(performanceRecord, today);
-                updatedRecord = completed ? maybeExitFocusReview(progressedRecord) : progressedRecord;
-                queueAction = completed ? 'remove' : 'reinsert';
-            } else {
-                const interval = getNextReviewInterval(record.reviewStage, isReinforce);
-                updatedRecord = interval === null
-                    ? { ...clearFocusReviewFields(clearSameDayReviewFields(performanceRecord)), mastered: true, masteredDate: today }
-                    : maybeExitFocusReview({
-                        ...clearSameDayReviewFields(performanceRecord),
-                        reviewStage: record.reviewStage + 1,
-                        nextReviewDate: getFutureDateString(interval)
-                    });
-            }
+            const { record: updatedRecord, shouldRequeue } = scheduleReviewResult(record, quality, today);
+            const requeue = shouldRequeue && !(updatedRecord.isFocusReview && reviewTab !== 'focus');
 
             const acceptedRecord = await updateRecord(updatedRecord);
             if (!acceptedRecord) return;
@@ -992,7 +950,7 @@ export default function useVocabularyApp() {
                     record: JSON.parse(JSON.stringify(record))
                 }
             ]);
-            setReviewQueue(prev => queueAction === 'reinsert'
+            setReviewQueue(prev => requeue
                 ? reinsertReviewItem(prev, acceptedRecord)
                 : prev.slice(1).filter(item => item.id !== acceptedRecord.id));
             setIsFlipped(false);
