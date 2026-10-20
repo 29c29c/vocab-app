@@ -152,18 +152,22 @@ export default function SettingsPanel({
                         </select>
                     </div>
                 </div>
+            </div>
+
+            <section aria-label="复习设置">
+                <h3 className="text-sm font-bold text-slate-800 mb-3">复习设置</h3>
                 <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center justify-between gap-4">
                     <div>
-                        <div className="text-sm font-bold text-slate-800">复习显示例句</div>
-                        <div className="text-xs text-slate-500 mt-1">
-                            普通复习和重点巩固共用这个设置。
+                        <div id="review-sentence-label" className="text-sm font-bold text-slate-800">答案揭晓前显示例句</div>
+                        <div id="review-sentence-description" className="text-xs text-slate-500 mt-1">
+                            默认开启，在卡片正面显示你添加的句子。关闭后，揭晓答案时仍会显示。适用于普通复习和重点巩固，听音题除外。
                         </div>
                     </div>
                     <button
                         type="button"
                         onClick={() => onUpdateSetting('showReviewSentence', !showReviewSentence)}
-                        className={`relative inline-flex h-7 w-14 items-center rounded-full transition ${showReviewSentence ? 'bg-emerald-500' : 'bg-slate-600'}`}
-                        aria-label="复习显示例句" aria-pressed={showReviewSentence}
+                        className={`relative inline-flex h-7 w-14 shrink-0 items-center rounded-full transition ${showReviewSentence ? 'bg-emerald-500' : 'bg-slate-600'}`}
+                        role="switch" aria-labelledby="review-sentence-label" aria-describedby="review-sentence-description" aria-checked={showReviewSentence}
                         title={showReviewSentence ? '已开启' : '已关闭'}
                     >
                         <span
@@ -182,7 +186,7 @@ export default function SettingsPanel({
                         </div>
                     </div>
                 </div>
-            </div>
+            </section>
 
             <section className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4" aria-label="已掌握回归复习设置">
                 <div className="flex items-center justify-between gap-4">
